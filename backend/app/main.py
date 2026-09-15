@@ -46,6 +46,7 @@ from app.services.highlights import (
     translate_to_english,
 )
 from app.services.transcribe import transcribe
+from app.services.youtube import VideoUrlError, download_video
 from app.services.video import (
     ASPECT_PRESETS,
     DEFAULT_ASPECT,
@@ -220,6 +221,23 @@ class AddClipPayload(BaseModel):
 
 class TranslateClipPayload(BaseModel):
     language: str
+
+
+class UploadUrlPayload(BaseModel):
+    """Kullanicinin bilgisayarindan dosya yuklemek yerine bir video linki
+    (YouTube ve yt-dlp'nin destekledigi diger siteler) yapistirarak video
+    yuklemesini saglayan istek govdesi - /api/upload ile ayni render/klip
+    secenekleri (multipart yerine JSON govdesinde)."""
+    url: str
+    style: str | None = None
+    remove_fillers: bool | None = None
+    clip_count: int | None = None
+    min_duration: float | None = None
+    max_duration: float | None = None
+    subtitle_color: str | None = None
+    subtitle_position: str | None = None
+    aspect: str | None = None
+    subtitle_animation: str | None = None
 
 
 class PasswordPayload(BaseModel):
@@ -880,21 +898,29 @@ def _job_to_dict(row: dict) -> dict:
     }
 
 
-@app.post("/api/upload")
-async def upload_video(
-    file: UploadFile,
+def _start_processing_job(
+    job_id: str,
+    video_path: Path,
+    filename: str,
+    style: str,
+    remove_fillers: bool,
+    clip_count: int | None,
+    min_duration: float | None,
+    max_duration: float | None,
+    subtitle_color: str | None,
+    subtitle_position: str | None,
+    aspect: str | None,
+    subtitle_animation: str | None,
+    current_user: dict,
     background_tasks: BackgroundTasks,
-    style: str = Form(DEFAULT_STYLE),
-    remove_fillers: bool = Form(True),
-    clip_count: int | None = Form(None),
-    min_duration: float | None = Form(None),
-    max_duration: float | None = Form(None),
-    subtitle_color: str | None = Form(None),
-    subtitle_position: str | None = Form(None),
-    aspect: str | None = Form(None),
-    subtitle_animation: str | None = Form(None),
-    current_user: dict = Depends(get_current_user),
-):
+) -> dict:
+    """Diskte hazir duran bir video dosyasi icin (bilgisayardan yuklenmis veya
+    bir linkten indirilmis farketmez) is (job) kaydini olusturur, kredi
+    kontrolunu yapar ve arka plan islem hattini (run_pipeline) baslatir.
+    /api/upload ve /api/upload-url tarafindan ORTAK kullanilir - boylece link
+    ile yukleme, bilgisayardan yuklemeyle tamamen ayni is akisindan gecer.
+    Herhangi bir dogrulama/kredi hatasinda, ceri kalmamasi icin video_path
+    diskten silinir."""
     if style not in STYLE_PRESETS:
         style = DEFAULT_STYLE
 
@@ -912,21 +938,18 @@ async def upload_video(
     if can_customize:
         if clip_count is not None:
             if not (3 <= clip_count <= 8):
+                video_path.unlink(missing_ok=True)
                 raise HTTPException(status_code=400, detail="Klip sayısı 3 ile 8 arasında olmalı")
             max_clips = clip_count
         if min_duration is not None and max_duration is not None:
             if not (10 <= min_duration < max_duration <= 180):
+                video_path.unlink(missing_ok=True)
                 raise HTTPException(status_code=400, detail="Klip süre aralığı geçersiz")
             dur_min, dur_max = min_duration, max_duration
 
     # Altyazi rengi/konumu ve en-boy orani tum planlarda acik - sadece
     # klip sayisi/suresi ucretli plana ozel (yukarida ayrica kontrol edildi).
     color, position, asp, anim = _validate_render_options(subtitle_color, subtitle_position, aspect, subtitle_animation)
-
-    job_id = str(uuid.uuid4())
-    video_path = UPLOAD_DIR / f"{job_id}_{file.filename}"
-    with open(video_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
 
     # Kredi maliyeti: video suresi (ffprobe ile okunur) ve secilen klip
     # sayisina gore hesaplanir - bkz. app/services/credits.py.
@@ -953,7 +976,7 @@ async def upload_video(
             VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                job_id, current_user["id"], file.filename, style, int(remove_fillers),
+                job_id, current_user["id"], filename, style, int(remove_fillers),
                 color, position, asp, anim, cost, org["id"] if org else None,
             ),
         )
@@ -964,6 +987,61 @@ async def upload_video(
         color, position, asp, anim,
     )
     return {"job_id": job_id, "credit_cost": cost}
+
+
+@app.post("/api/upload")
+async def upload_video(
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    style: str = Form(DEFAULT_STYLE),
+    remove_fillers: bool = Form(True),
+    clip_count: int | None = Form(None),
+    min_duration: float | None = Form(None),
+    max_duration: float | None = Form(None),
+    subtitle_color: str | None = Form(None),
+    subtitle_position: str | None = Form(None),
+    aspect: str | None = Form(None),
+    subtitle_animation: str | None = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    job_id = str(uuid.uuid4())
+    video_path = UPLOAD_DIR / f"{job_id}_{file.filename}"
+    with open(video_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    return _start_processing_job(
+        job_id, video_path, file.filename, style, remove_fillers, clip_count, min_duration, max_duration,
+        subtitle_color, subtitle_position, aspect, subtitle_animation, current_user, background_tasks,
+    )
+
+
+@app.post("/api/upload-url")
+async def upload_video_from_url(
+    payload: UploadUrlPayload,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Kullanicinin bilgisayarindan dosya yuklemesi yerine bir YouTube (veya
+    yt-dlp'nin destekledigi baska bir site) linki yapistirarak video
+    yuklemesini saglar. Indirilen video, /api/upload ile TAMAMEN AYNI is
+    akisindan (_start_processing_job) gecer - yani sanki bilgisayardan
+    yuklenmis gibi ayni kredi hesaplamasi ve klip uretim hatti calisir."""
+    job_id = str(uuid.uuid4())
+    try:
+        video_path, title = download_video(payload.url, UPLOAD_DIR, job_id)
+    except VideoUrlError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    style = payload.style if payload.style else DEFAULT_STYLE
+    remove_fillers = payload.remove_fillers if payload.remove_fillers is not None else True
+    display_filename = f"{title}{video_path.suffix}"
+
+    return _start_processing_job(
+        job_id, video_path, display_filename, style, remove_fillers, payload.clip_count,
+        payload.min_duration, payload.max_duration, payload.subtitle_color,
+        payload.subtitle_position, payload.aspect, payload.subtitle_animation,
+        current_user, background_tasks,
+    )
 
 
 @app.get("/api/jobs/{job_id}")

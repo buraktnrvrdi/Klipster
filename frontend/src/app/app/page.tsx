@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2 } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -861,6 +861,8 @@ export default function AppPage() {
   const [history, setHistory] = useState<JobSummary[]>([]);
 
   const [file, setFile] = useState<File | null>(null);
+  const [uploadMode, setUploadMode] = useState<"dosya" | "link">("dosya");
+  const [videoUrl, setVideoUrl] = useState("");
   const [status, setStatus] = useState<JobStatus>("idle");
   const [clips, setClips] = useState<Clip[]>([]);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
@@ -1044,44 +1046,10 @@ export default function AppPage() {
 
   const canCustomize = !!me && CUSTOMIZABLE_PLANS.includes(me.effective_plan ?? me.user.plan);
 
-  async function handleUpload() {
-    if (!file || !token) return;
-    setStatus("queued");
-    setClips([]);
-    setCurrentJobId(null);
-    setError(null);
-
-    const preset = DURATION_PRESETS[durationPreset] ?? DURATION_PRESETS.orta;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("style", style);
-    formData.append("remove_fillers", String(removeFillers));
-    formData.append("subtitle_color", subtitleColor);
-    formData.append("subtitle_position", subtitlePosition);
-    formData.append("aspect", aspect);
-    formData.append("subtitle_animation", subtitleAnimation);
-    if (canCustomize) {
-      formData.append("clip_count", String(clipCount));
-      formData.append("min_duration", String(preset.min));
-      formData.append("max_duration", String(preset.max));
-    }
-
-    const res = await fetch(`${API_URL}/api/upload`, {
-      method: "POST",
-      headers: authHeaders(token),
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setStatus("error");
-      setError(data.detail || "Yükleme başarısız");
-      return;
-    }
-    const jobId = data.job_id;
+  function trackJob(jobId: string) {
     setCurrentJobId(jobId);
-
     const poll = setInterval(async () => {
+      if (!token) return;
       const r = await fetch(`${API_URL}/api/jobs/${jobId}`, { headers: authHeaders(token) });
       const jobData = await r.json();
       setStatus(jobData.status);
@@ -1101,6 +1069,71 @@ export default function AppPage() {
         clearInterval(poll);
       }
     }, 3000);
+  }
+
+  async function handleUpload() {
+    if (!token) return;
+    if (uploadMode === "dosya" && !file) return;
+    if (uploadMode === "link" && !videoUrl.trim()) return;
+    setStatus("queued");
+    setClips([]);
+    setCurrentJobId(null);
+    setError(null);
+
+    const preset = DURATION_PRESETS[durationPreset] ?? DURATION_PRESETS.orta;
+
+    let res: Response;
+    if (uploadMode === "link") {
+      // YouTube (veya yt-dlp'nin destekledigi baska bir site) linkinden
+      // yukleme - sunucu videoyu indirip sanki bilgisayardan yuklenmis
+      // gibi AYNI klip uretim hattina sokuyor (bkz. backend _start_processing_job).
+      const body: Record<string, unknown> = {
+        url: videoUrl.trim(),
+        style,
+        remove_fillers: removeFillers,
+        subtitle_color: subtitleColor,
+        subtitle_position: subtitlePosition,
+        aspect,
+        subtitle_animation: subtitleAnimation,
+      };
+      if (canCustomize) {
+        body.clip_count = clipCount;
+        body.min_duration = preset.min;
+        body.max_duration = preset.max;
+      }
+      res = await fetch(`${API_URL}/api/upload-url`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } else {
+      const formData = new FormData();
+      formData.append("file", file as File);
+      formData.append("style", style);
+      formData.append("remove_fillers", String(removeFillers));
+      formData.append("subtitle_color", subtitleColor);
+      formData.append("subtitle_position", subtitlePosition);
+      formData.append("aspect", aspect);
+      formData.append("subtitle_animation", subtitleAnimation);
+      if (canCustomize) {
+        formData.append("clip_count", String(clipCount));
+        formData.append("min_duration", String(preset.min));
+        formData.append("max_duration", String(preset.max));
+      }
+      res = await fetch(`${API_URL}/api/upload`, {
+        method: "POST",
+        headers: authHeaders(token),
+        body: formData,
+      });
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus("error");
+      setError(data.detail || "Yükleme başarısız");
+      return;
+    }
+    trackJob(data.job_id);
   }
 
   const isBusy = status !== "idle" && status !== "done" && status !== "error";
@@ -1187,6 +1220,31 @@ export default function AppPage() {
         )}
 
         <div className="w-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 sm:p-10 flex flex-col items-center gap-6 shadow-2xl">
+          {!recording && (
+            <div className="w-full flex items-center gap-1.5 bg-black/30 border border-white/10 rounded-full p-1">
+              <button
+                type="button"
+                onClick={() => setUploadMode("dosya")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  uploadMode === "dosya" ? "bg-orange-500 text-black" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <UploadCloud className="h-3.5 w-3.5" />
+                Dosya yükle
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadMode("link")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  uploadMode === "link" ? "bg-orange-500 text-black" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Link ile yükle
+              </button>
+            </div>
+          )}
+
           {recording ? (
             <div className="w-full flex flex-col items-center gap-3 border border-red-500/30 bg-red-500/[0.06] rounded-xl px-6 py-8">
               <span className="relative flex h-3 w-3">
@@ -1203,6 +1261,24 @@ export default function AppPage() {
                 <CircleStop className="h-3.5 w-3.5" />
                 Kaydı durdur
               </button>
+            </div>
+          ) : uploadMode === "link" ? (
+            <div className="w-full flex flex-col items-center gap-2">
+              <label className="w-full flex items-center gap-3 border border-dashed border-white/15 rounded-xl px-4 py-4 focus-within:border-orange-500/40 transition-colors">
+                <Link2 className="h-5 w-5 text-zinc-500 shrink-0" />
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="YouTube video linkini yapıştır"
+                  className="w-full bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+                />
+              </label>
+              <p className="text-[11px] text-zinc-500 text-center">
+                Linki yapıştır, videoyu bilgisayarına indirmene gerek yok - biz indirip
+                doğrudan klip oluşturmaya başlarız.
+              </p>
             </div>
           ) : (
             <>
@@ -1391,7 +1467,7 @@ export default function AppPage() {
 
           <button
             onClick={handleUpload}
-            disabled={!file || isBusy || limitReached}
+            disabled={(uploadMode === "dosya" ? !file : !videoUrl.trim()) || isBusy || limitReached}
             className="bg-orange-500 text-black px-8 py-2.5 rounded-full font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-30 disabled:hover:bg-orange-500"
           >
             Klipleri Oluştur
