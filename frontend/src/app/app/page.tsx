@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -22,6 +22,9 @@ type Clip = {
   subtitle_color?: string;
   subtitle_position?: string;
   aspect?: string;
+  social_caption?: string;
+  social_hashtags?: string[];
+  translations?: { language: string; label: string; url: string }[];
 };
 type JobStatus =
   | "idle"
@@ -347,6 +350,7 @@ function ClipCard({
   defaultColor,
   defaultPosition,
   defaultAspect,
+  subtitleLanguages,
 }: {
   clip: Clip;
   index: number;
@@ -361,6 +365,7 @@ function ClipCard({
   defaultColor: string;
   defaultPosition: string;
   defaultAspect: string;
+  subtitleLanguages: { id: string; label: string }[];
 }) {
   const [editing, setEditing] = useState(false);
   const [start, setStart] = useState(clip.start ?? 0);
@@ -372,6 +377,12 @@ function ClipCard({
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [captionLoading, setCaptionLoading] = useState(false);
+  const [captionError, setCaptionError] = useState<string | null>(null);
+  const [captionCopied, setCaptionCopied] = useState(false);
+  const [translateLoading, setTranslateLoading] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  const [translateLang, setTranslateLang] = useState(subtitleLanguages[0]?.id ?? "en");
 
   async function handleRetrim() {
     if (!jobId) return;
@@ -423,6 +434,58 @@ function ClipCard({
       setEditError("Sunucuya ulaşılamadı");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleGenerateCaption() {
+    if (!jobId) return;
+    setCaptionLoading(true);
+    setCaptionError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${index}/caption`, {
+        method: "POST",
+        headers: authHeaders(token),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCaptionError(data.detail || "Oluşturulamadı");
+        return;
+      }
+      onUpdated(index, data);
+    } catch {
+      setCaptionError("Sunucuya ulaşılamadı");
+    } finally {
+      setCaptionLoading(false);
+    }
+  }
+
+  function handleCopyCaption() {
+    const text = `${clip.social_caption ?? ""}\n\n${(clip.social_hashtags ?? []).map((h) => `#${h}`).join(" ")}`;
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCaptionCopied(true);
+    setTimeout(() => setCaptionCopied(false), 2000);
+  }
+
+  async function handleTranslate() {
+    if (!jobId) return;
+    setTranslateLoading(true);
+    setTranslateError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${index}/translate`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ language: translateLang }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTranslateError(data.detail || "Çevrilemedi");
+        return;
+      }
+      onUpdated(index, data);
+    } catch {
+      setTranslateError("Sunucuya ulaşılamadı");
+    } finally {
+      setTranslateLoading(false);
     }
   }
 
@@ -483,6 +546,79 @@ function ClipCard({
             </a>
           )}
         </div>
+
+        {canEdit && jobId && (
+          <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5">
+            {clip.social_caption ? (
+              <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2.5">
+                <p className="text-xs text-zinc-300 leading-relaxed">{clip.social_caption}</p>
+                {clip.social_hashtags && clip.social_hashtags.length > 0 && (
+                  <p className="mt-1.5 text-[11px] text-orange-400">
+                    {clip.social_hashtags.map((h) => `#${h}`).join(" ")}
+                  </p>
+                )}
+                <button
+                  onClick={handleCopyCaption}
+                  className="mt-2 flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium transition-colors"
+                >
+                  <Copy className="h-3 w-3" />
+                  {captionCopied ? "Kopyalandı ✓" : "Metni kopyala"}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleGenerateCaption}
+                disabled={captionLoading}
+                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium transition-colors disabled:opacity-40 w-fit"
+              >
+                <Sparkles className="h-3 w-3" />
+                {captionLoading ? "Oluşturuluyor..." : "Paylaşım metni ve hashtag oluştur"}
+              </button>
+            )}
+            {captionError && (
+              <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+                {captionError}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {(clip.translations ?? []).map((t) => (
+                <a
+                  key={t.language}
+                  href={`${API_URL}${t.url}`}
+                  download
+                  className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  {t.label} (.srt)
+                </a>
+              ))}
+              <select
+                value={translateLang}
+                onChange={(e) => setTranslateLang(e.target.value)}
+                className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+              >
+                {subtitleLanguages.map((l) => (
+                  <option key={l.id} value={l.id} className="bg-black">
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleTranslate}
+                disabled={translateLoading}
+                className="text-[11px] text-orange-400 hover:text-orange-300 font-medium transition-colors disabled:opacity-40"
+              >
+                {translateLoading ? "Çevriliyor..." : "+ Altyazı ekle"}
+              </button>
+            </div>
+            {translateError && (
+              <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+                {translateError}
+              </p>
+            )}
+          </div>
+        )}
 
         {editing && canEdit && jobId && (
           <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2">
@@ -706,6 +842,9 @@ export default function AppPage() {
   const [currentStyle, setCurrentStyle] = useState("klasik");
   const [currentSubtitleColor, setCurrentSubtitleColor] = useState("#FFFFFF");
   const [currentSubtitlePosition, setCurrentSubtitlePosition] = useState("alt");
+  const [subtitleLanguages, setSubtitleLanguages] = useState<{ id: string; label: string }[]>([
+    { id: "en", label: "İngilizce" },
+  ]);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationResent, setVerificationResent] = useState(false);
 
@@ -749,6 +888,13 @@ export default function AppPage() {
         if (data && data.aspects?.length && data.positions?.length && data.colors?.length && data.credits) {
           setRenderOptions(data);
         }
+      })
+      .catch(() => {});
+
+    fetch(`${API_URL}/api/subtitle-languages`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) setSubtitleLanguages(data);
       })
       .catch(() => {});
   }, [token, router]);
@@ -1123,6 +1269,7 @@ export default function AppPage() {
                 defaultColor={currentSubtitleColor}
                 defaultPosition={currentSubtitlePosition}
                 defaultAspect={currentAspect}
+                subtitleLanguages={subtitleLanguages}
               />
             ))}
             {currentJobId && status === "done" && (

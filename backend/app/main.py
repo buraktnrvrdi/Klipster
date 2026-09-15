@@ -39,7 +39,12 @@ from app.services.credits import (
     compute_credit_cost,
 )
 from app.services.email import send_email
-from app.services.highlights import find_highlights, translate_to_english
+from app.services.highlights import (
+    find_highlights,
+    generate_social_caption,
+    translate_subtitles,
+    translate_to_english,
+)
 from app.services.transcribe import transcribe
 from app.services.video import (
     ASPECT_PRESETS,
@@ -135,6 +140,20 @@ async def healthz():
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
+# Otomatik uretilen Ingilizce altyazinin (her klipte varsayilan olarak
+# uretiliyor) disinda, kullanicinin talep uzerine ekstra olarak
+# isteyebilecegi ceviri dilleri - /api/jobs/{id}/clips/{i}/translate.
+SUBTITLE_LANGUAGES = {
+    "en": "İngilizce",
+    "es": "İspanyolca",
+    "de": "Almanca",
+    "fr": "Fransızca",
+    "ar": "Arapça",
+    "ru": "Rusça",
+    "pt": "Portekizce",
+    "it": "İtalyanca",
+}
+
 
 def _validate_render_options(
     subtitle_color: str | None, subtitle_position: str | None, aspect: str | None
@@ -191,6 +210,10 @@ class AddClipPayload(BaseModel):
     subtitle_color: str | None = None
     subtitle_position: str | None = None
     aspect: str | None = None
+
+
+class TranslateClipPayload(BaseModel):
+    language: str
 
 
 class PasswordPayload(BaseModel):
@@ -1248,6 +1271,136 @@ async def delete_clip(
         conn.commit()
 
     return {"ok": True, "clips": clips}
+
+
+@app.post("/api/jobs/{job_id}/clips/{clip_index}/translate")
+async def translate_clip(
+    job_id: str,
+    clip_index: int,
+    payload: TranslateClipPayload,
+    current_user: dict = Depends(get_current_user),
+):
+    """Bir klip icin Ingilizce disinda (o otomatik uretilir) baska bir dilde
+    de altyazi (.srt) dosyasi uretir - SUBTITLE_LANGUAGES listesinden herhangi
+    bir dil secilebilir. Uretilen dosyalar klibin 'translations' listesinde
+    birikir (ayni dil tekrar istenirse ustune yazilir). Sadece metin cevirisi
+    oldugu icin kredi harcamaz."""
+    if payload.language not in SUBTITLE_LANGUAGES:
+        raise HTTPException(status_code=400, detail="Desteklenmeyen dil")
+
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+    row = dict(row)
+
+    words_json = row.get("words_json")
+    if not words_json:
+        raise HTTPException(status_code=409, detail="Bu iş için transkript verisi saklanmamış")
+    all_words = json.loads(words_json)
+
+    clips = json.loads(row["clips_json"]) if row["clips_json"] else []
+    if clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=404, detail="Klip bulunamadı")
+    clip = clips[clip_index]
+    start, end = clip.get("start"), clip.get("end")
+    if start is None or end is None:
+        raise HTTPException(status_code=409, detail="Bu klip için zaman aralığı bilgisi yok")
+
+    style = clip.get("style") or row["style"] or DEFAULT_STYLE
+    remove_fillers = clip["remove_fillers"] if "remove_fillers" in clip else bool(row["remove_fillers"])
+    job_out_dir = OUTPUT_DIR / job_id
+    job_out_dir.mkdir(parents=True, exist_ok=True)
+    name = f"clip_{clip_index + 1}"
+    lang_label = SUBTITLE_LANGUAGES[payload.language]
+
+    try:
+        keep_intervals = build_keep_intervals(all_words, start, end, remove_fillers=remove_fillers)
+        remapped = remap_words(all_words, start, end, keep_intervals)
+        chunks = chunk_words(remapped, style=style)
+        if not chunks:
+            raise HTTPException(status_code=409, detail="Bu klip için altyazı metni bulunamadı")
+        translated = translate_subtitles([c["text"] for c in chunks], lang_label)
+        for c, t in zip(chunks, translated):
+            c["text"] = t
+        srt_path = job_out_dir / f"{name}_{payload.language}.srt"
+        write_srt(chunks, srt_path)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Çeviri başarısız: {e}")
+
+    cache_bust = uuid.uuid4().hex[:8]
+    url = f"/files/{job_id}/{srt_path.name}?v={cache_bust}"
+    translations = [t for t in clip.get("translations", []) if t.get("language") != payload.language]
+    translations.append({"language": payload.language, "label": lang_label, "url": url})
+    clips[clip_index] = {**clip, "translations": translations}
+
+    with get_conn() as conn:
+        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.commit()
+
+    return clips[clip_index]
+
+
+@app.post("/api/jobs/{job_id}/clips/{clip_index}/caption")
+async def generate_clip_caption(
+    job_id: str,
+    clip_index: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Klibin transkript metninden sosyal medya paylasim metni (caption) ve
+    hashtag onerileri uretip klibe kaydeder. Video islemenin aksine kisa bir
+    metin uretimi oldugu icin kredi harcamaz."""
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+    row = dict(row)
+
+    words_json = row.get("words_json")
+    if not words_json:
+        raise HTTPException(status_code=409, detail="Bu iş için transkript verisi saklanmamış")
+    all_words = json.loads(words_json)
+
+    clips = json.loads(row["clips_json"]) if row["clips_json"] else []
+    if clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=404, detail="Klip bulunamadı")
+    clip = clips[clip_index]
+    start, end = clip.get("start"), clip.get("end")
+    if start is None or end is None:
+        raise HTTPException(status_code=409, detail="Bu klip için zaman aralığı bilgisi yok")
+
+    clip_words = [w for w in all_words if start <= w["start"] < end]
+    transcript_text = "".join(w["word"] for w in clip_words).strip()
+    if not transcript_text:
+        raise HTTPException(status_code=409, detail="Bu klip için transkript metni bulunamadı")
+
+    try:
+        result = generate_social_caption(transcript_text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Paylaşım metni oluşturulamadı: {e}")
+
+    clips[clip_index] = {**clip, "social_caption": result["caption"], "social_hashtags": result["hashtags"]}
+
+    with get_conn() as conn:
+        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.commit()
+
+    return clips[clip_index]
+
+
+@app.get("/api/subtitle-languages")
+async def subtitle_languages():
+    return [{"id": key, "label": label} for key, label in SUBTITLE_LANGUAGES.items()]
 
 
 @app.get("/api/caption-styles")

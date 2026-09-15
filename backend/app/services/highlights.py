@@ -128,3 +128,55 @@ def translate_to_english(lines: list[str]) -> list[str]:
     if not isinstance(translated, list) or len(translated) != len(lines):
         raise ValueError("Ceviri sonucu beklenmeyen formatta veya eksik/fazla eleman iceriyor")
     return [str(t) for t in translated]
+
+
+TRANSLATE_GENERIC_SYSTEM_PROMPT_TEMPLATE = """Sen profesyonel bir altyazi cevirmenisin. Sana JSON formatinda \
+bir metin dizisi (array) verilecek - kaynak dil ne olursa olsun otomatik olarak tespit et. Her elemani, \
+altyazi olarak kullanilacak sekilde kisa, akici ve dogal bir {target_language} diline cevir. Sira ve \
+eleman sayisi degismemeli.
+
+SADECE, verilenle AYNI UZUNLUKTA bir JSON dizisi dondur, baska hicbir metin ekleme. Ornek:
+["..."]
+"""
+
+
+def translate_subtitles(lines: list[str], target_language: str) -> list[str]:
+    """translate_to_english'in genellenmis hali - kullanicinin sectigi HERHANGI
+    bir hedef dile altyazi cevirisi yapar (bkz. app.main.SUBTITLE_LANGUAGES)."""
+    if not lines:
+        return []
+    system_prompt = TRANSLATE_GENERIC_SYSTEM_PROMPT_TEMPLATE.format(target_language=target_language)
+    user_prompt = json.dumps(lines, ensure_ascii=False)
+    raw = _run_prompt(system_prompt, user_prompt)
+    translated = json.loads(_strip_code_fence(raw))
+    if not isinstance(translated, list) or len(translated) != len(lines):
+        raise ValueError("Ceviri sonucu beklenmeyen formatta veya eksik/fazla eleman iceriyor")
+    return [str(t) for t in translated]
+
+
+SOCIAL_CAPTION_SYSTEM_PROMPT = """Sen bir sosyal medya icerik yoneticisisin. Sana bir video klibin \
+transkript metni verilecek. Bu klip icin TikTok/Instagram Reels/YouTube Shorts'ta paylasilmaya hazir, \
+dikkat cekici bir paylasim metni (caption) ve 5-8 adet ilgili hashtag uret.
+
+Transkript HANGI DILDE ise caption ve hashtag'ler DE O DILDE olsun - dili degistirme veya Turkce'ye cevirme.
+
+Caption kisa (1-3 cumle), merak uyandiran veya net bir deger onerisi sunan bir ton tasisin, uygun oldugunda \
+emoji kullanabilir. Hashtag'ler # isareti OLMADAN, bosluksuz tek kelime/bitisik ifadeler olarak dondurulmeli.
+
+SADECE asagidaki JSON formatinda cevap ver, baska hicbir metin ekleme:
+{
+  "caption": "...",
+  "hashtags": ["hashtag1", "hashtag2", "..."]
+}
+"""
+
+
+def generate_social_caption(transcript_text: str) -> dict:
+    """Bir klibin transkript metninden sosyal medya paylasim metni (caption) ve
+    hashtag onerileri uretir."""
+    user_prompt = f"Klip transkripti:\n\n{transcript_text}"
+    raw = _run_prompt(SOCIAL_CAPTION_SYSTEM_PROMPT, user_prompt)
+    data = _clean_json(raw)
+    caption = str(data.get("caption", "")).strip()
+    hashtags = [str(h).strip().lstrip("#") for h in data.get("hashtags", []) if str(h).strip()]
+    return {"caption": caption, "hashtags": hashtags}
