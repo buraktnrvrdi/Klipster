@@ -50,9 +50,11 @@ from app.services.video import (
     ASPECT_PRESETS,
     DEFAULT_ASPECT,
     DEFAULT_STYLE,
+    DEFAULT_SUBTITLE_ANIMATION,
     DEFAULT_SUBTITLE_COLOR,
     DEFAULT_SUBTITLE_POSITION,
     STYLE_PRESETS,
+    SUBTITLE_ANIMATIONS,
     SUBTITLE_COLOR_PRESETS,
     SUBTITLE_POSITIONS,
     build_keep_intervals,
@@ -156,14 +158,16 @@ SUBTITLE_LANGUAGES = {
 
 
 def _validate_render_options(
-    subtitle_color: str | None, subtitle_position: str | None, aspect: str | None
-) -> tuple[str, str, str]:
-    """Altyazi rengi/konumu ve en-boy orani kullanici girdisini dogrular,
-    gecersiz/eksik deger gelirse sessizce varsayilana duser."""
+    subtitle_color: str | None, subtitle_position: str | None, aspect: str | None,
+    subtitle_animation: str | None = None,
+) -> tuple[str, str, str, str]:
+    """Altyazi rengi/konumu, en-boy orani ve altyazi animasyonu kullanici
+    girdisini dogrular, gecersiz/eksik deger gelirse sessizce varsayilana duser."""
     color = subtitle_color if subtitle_color and HEX_COLOR_RE.match(subtitle_color) else DEFAULT_SUBTITLE_COLOR
     position = subtitle_position if subtitle_position in SUBTITLE_POSITIONS else DEFAULT_SUBTITLE_POSITION
     asp = aspect if aspect in ASPECT_PRESETS else DEFAULT_ASPECT
-    return color, position, asp
+    anim = subtitle_animation if subtitle_animation in SUBTITLE_ANIMATIONS else DEFAULT_SUBTITLE_ANIMATION
+    return color, position, asp, anim
 
 
 def _resolve_clip_option(payload_value, is_valid, existing: dict, existing_key: str, row: dict, row_key: str, default):
@@ -197,6 +201,7 @@ class RetrimPayload(BaseModel):
     subtitle_color: str | None = None
     subtitle_position: str | None = None
     aspect: str | None = None
+    subtitle_animation: str | None = None
 
 
 class AddClipPayload(BaseModel):
@@ -210,6 +215,7 @@ class AddClipPayload(BaseModel):
     subtitle_color: str | None = None
     subtitle_position: str | None = None
     aspect: str | None = None
+    subtitle_animation: str | None = None
 
 
 class TranslateClipPayload(BaseModel):
@@ -789,6 +795,7 @@ def run_pipeline(
     subtitle_color: str = DEFAULT_SUBTITLE_COLOR,
     subtitle_position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
+    subtitle_animation: str = DEFAULT_SUBTITLE_ANIMATION,
 ):
     try:
         _set_job(job_id, status="transcribing")
@@ -822,6 +829,7 @@ def run_pipeline(
                 video_path, clip["start"], clip["end"], all_words, job_out_dir, name,
                 style=style, remove_fillers=remove_fillers,
                 subtitle_color=subtitle_color, position=subtitle_position, aspect=aspect,
+                animation=subtitle_animation,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
             subtitles_en_url = None
@@ -843,6 +851,7 @@ def run_pipeline(
                 "subtitle_color": subtitle_color,
                 "subtitle_position": subtitle_position,
                 "aspect": aspect,
+                "subtitle_animation": subtitle_animation,
                 "remove_fillers": remove_fillers,
             })
 
@@ -864,6 +873,7 @@ def _job_to_dict(row: dict) -> dict:
         "subtitle_color": row.get("subtitle_color") or DEFAULT_SUBTITLE_COLOR,
         "subtitle_position": row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION,
         "aspect": row.get("aspect") or DEFAULT_ASPECT,
+        "subtitle_animation": row.get("subtitle_animation") or DEFAULT_SUBTITLE_ANIMATION,
         "credit_cost": row.get("credit_cost") or 0,
         "uploaded_by": row.get("uploaded_by_email"),
         "created_at": row["created_at"],
@@ -882,6 +892,7 @@ async def upload_video(
     subtitle_color: str | None = Form(None),
     subtitle_position: str | None = Form(None),
     aspect: str | None = Form(None),
+    subtitle_animation: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
     if style not in STYLE_PRESETS:
@@ -910,7 +921,7 @@ async def upload_video(
 
     # Altyazi rengi/konumu ve en-boy orani tum planlarda acik - sadece
     # klip sayisi/suresi ucretli plana ozel (yukarida ayrica kontrol edildi).
-    color, position, asp = _validate_render_options(subtitle_color, subtitle_position, aspect)
+    color, position, asp, anim = _validate_render_options(subtitle_color, subtitle_position, aspect, subtitle_animation)
 
     job_id = str(uuid.uuid4())
     video_path = UPLOAD_DIR / f"{job_id}_{file.filename}"
@@ -938,19 +949,19 @@ async def upload_video(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, credit_cost, org_id)
-            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, credit_cost, org_id)
+            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job_id, current_user["id"], file.filename, style, int(remove_fillers),
-                color, position, asp, cost, org["id"] if org else None,
+                color, position, asp, anim, cost, org["id"] if org else None,
             ),
         )
         conn.commit()
 
     background_tasks.add_task(
         run_pipeline, job_id, str(video_path), style, remove_fillers, max_clips, dur_min, dur_max,
-        color, position, asp,
+        color, position, asp, anim,
     )
     return {"job_id": job_id, "credit_cost": cost}
 
@@ -1072,6 +1083,10 @@ async def retrim_clip(
     asp = _resolve_clip_option(
         payload.aspect, lambda v: v in ASPECT_PRESETS, existing_clip, "aspect", row, "aspect", DEFAULT_ASPECT,
     )
+    anim = _resolve_clip_option(
+        payload.subtitle_animation, lambda v: v in SUBTITLE_ANIMATIONS,
+        existing_clip, "subtitle_animation", row, "subtitle_animation", DEFAULT_SUBTITLE_ANIMATION,
+    )
     name = f"clip_{clip_index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
 
@@ -1079,7 +1094,7 @@ async def retrim_clip(
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
-            subtitle_color=color, position=position, aspect=asp,
+            subtitle_color=color, position=position, aspect=asp, animation=anim,
         )
         cover_path = make_cover(path, clips[clip_index].get("title", name), job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1104,6 +1119,7 @@ async def retrim_clip(
         "subtitle_color": color,
         "subtitle_position": position,
         "aspect": asp,
+        "subtitle_animation": anim,
         "remove_fillers": remove_fillers,
     }
 
@@ -1193,6 +1209,9 @@ async def add_clip(
     asp = _resolve_clip_option(
         payload.aspect, lambda v: v in ASPECT_PRESETS, {}, "aspect", row, "aspect", DEFAULT_ASPECT,
     )
+    anim = _resolve_clip_option(
+        payload.subtitle_animation, lambda v: v in SUBTITLE_ANIMATIONS, {}, "subtitle_animation", row, "subtitle_animation", DEFAULT_SUBTITLE_ANIMATION,
+    )
     index = len(clips)
     name = f"clip_{index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
@@ -1202,7 +1221,7 @@ async def add_clip(
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
-            subtitle_color=color, position=position, aspect=asp,
+            subtitle_color=color, position=position, aspect=asp, animation=anim,
         )
         cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1229,6 +1248,7 @@ async def add_clip(
         "subtitle_color": color,
         "subtitle_position": position,
         "aspect": asp,
+        "subtitle_animation": anim,
         "remove_fillers": remove_fillers,
     }
     clips.append(new_clip)
@@ -1427,6 +1447,7 @@ async def render_options():
         "aspects": [{"id": key, "label": preset["label"]} for key, preset in ASPECT_PRESETS.items()],
         "positions": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_POSITIONS.items()],
         "colors": SUBTITLE_COLOR_PRESETS,
+        "animations": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_ANIMATIONS.items()],
         "credits": {"base": CREDIT_COST_BASE, "per_clip": CREDIT_COST_PER_CLIP},
     }
 

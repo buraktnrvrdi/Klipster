@@ -22,6 +22,7 @@ type Clip = {
   subtitle_color?: string;
   subtitle_position?: string;
   aspect?: string;
+  subtitle_animation?: string;
   social_caption?: string;
   social_hashtags?: string[];
   translations?: { language: string; label: string; url: string }[];
@@ -48,6 +49,7 @@ type RenderOptions = {
   aspects: { id: string; label: string }[];
   positions: { id: string; label: string }[];
   colors: { id: string; label: string; hex: string }[];
+  animations: { id: string; label: string }[];
   credits: { base: number; per_clip: number };
 };
 type Me = {
@@ -102,6 +104,10 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "mavi", label: "Mavi", hex: "#3B82F6" },
     { id: "pembe", label: "Pembe", hex: "#EC4899" },
   ],
+  animations: [
+    { id: "statik", label: "Statik (klasik)" },
+    { id: "karaoke", label: "Kelime vurgulu (karaoke)" },
+  ],
   credits: { base: 4, per_clip: 2 },
 };
 
@@ -139,6 +145,8 @@ function RenderOptionsFields({
   onPositionChange,
   aspect,
   onAspectChange,
+  animation,
+  onAnimationChange,
 }: {
   styles: Record<string, string>;
   renderOptions: RenderOptions;
@@ -150,6 +158,8 @@ function RenderOptionsFields({
   onPositionChange: (v: string) => void;
   aspect: string;
   onAspectChange: (v: string) => void;
+  animation: string;
+  onAnimationChange: (v: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -193,6 +203,20 @@ function RenderOptionsFields({
           {renderOptions.positions.map((pos) => (
             <option key={pos.id} value={pos.id} className="bg-black">
               {pos.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="text-[11px] font-medium text-zinc-500">
+        Altyazı animasyonu
+        <select
+          value={animation}
+          onChange={(e) => onAnimationChange(e.target.value)}
+          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+        >
+          {renderOptions.animations.map((a) => (
+            <option key={a.id} value={a.id} className="bg-black">
+              {a.label}
             </option>
           ))}
         </select>
@@ -350,6 +374,7 @@ function ClipCard({
   defaultColor,
   defaultPosition,
   defaultAspect,
+  defaultAnimation,
   subtitleLanguages,
 }: {
   clip: Clip;
@@ -365,6 +390,7 @@ function ClipCard({
   defaultColor: string;
   defaultPosition: string;
   defaultAspect: string;
+  defaultAnimation: string;
   subtitleLanguages: { id: string; label: string }[];
 }) {
   const [editing, setEditing] = useState(false);
@@ -374,6 +400,7 @@ function ClipCard({
   const [clipColor, setClipColor] = useState(clip.subtitle_color ?? defaultColor);
   const [clipPosition, setClipPosition] = useState(clip.subtitle_position ?? defaultPosition);
   const [clipAspect, setClipAspect] = useState(clip.aspect ?? defaultAspect);
+  const [clipAnimation, setClipAnimation] = useState(clip.subtitle_animation ?? defaultAnimation);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -399,6 +426,7 @@ function ClipCard({
           subtitle_color: clipColor,
           subtitle_position: clipPosition,
           aspect: clipAspect,
+          subtitle_animation: clipAnimation,
         }),
       });
       const data = await res.json();
@@ -650,6 +678,8 @@ function ClipCard({
                 onPositionChange={setClipPosition}
                 aspect={clipAspect}
                 onAspectChange={setClipAspect}
+                animation={clipAnimation}
+                onAnimationChange={setClipAnimation}
               />
             </div>
             {editError && (
@@ -682,6 +712,7 @@ function AddClipCard({
   defaultColor,
   defaultPosition,
   defaultAspect,
+  defaultAnimation,
 }: {
   jobId: string;
   token: string;
@@ -693,6 +724,7 @@ function AddClipCard({
   defaultColor: string;
   defaultPosition: string;
   defaultAspect: string;
+  defaultAnimation: string;
 }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(0);
@@ -703,6 +735,7 @@ function AddClipCard({
   const [clipColor, setClipColor] = useState(defaultColor);
   const [clipPosition, setClipPosition] = useState(defaultPosition);
   const [clipAspect, setClipAspect] = useState(defaultAspect);
+  const [clipAnimation, setClipAnimation] = useState(defaultAnimation);
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -721,6 +754,7 @@ function AddClipCard({
           subtitle_color: clipColor,
           subtitle_position: clipPosition,
           aspect: clipAspect,
+          subtitle_animation: clipAnimation,
         }),
       });
       const data = await res.json();
@@ -801,6 +835,8 @@ function AddClipCard({
         onPositionChange={setClipPosition}
         aspect={clipAspect}
         onAspectChange={setClipAspect}
+        animation={clipAnimation}
+        onAnimationChange={setClipAnimation}
       />
       {addError && (
         <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
@@ -838,10 +874,12 @@ export default function AppPage() {
   const [subtitleColor, setSubtitleColor] = useState("#FFFFFF");
   const [subtitlePosition, setSubtitlePosition] = useState("alt");
   const [aspect, setAspect] = useState("9:16");
+  const [subtitleAnimation, setSubtitleAnimation] = useState("statik");
   const [currentAspect, setCurrentAspect] = useState("9:16");
   const [currentStyle, setCurrentStyle] = useState("klasik");
   const [currentSubtitleColor, setCurrentSubtitleColor] = useState("#FFFFFF");
   const [currentSubtitlePosition, setCurrentSubtitlePosition] = useState("alt");
+  const [currentSubtitleAnimation, setCurrentSubtitleAnimation] = useState("statik");
   const [subtitleLanguages, setSubtitleLanguages] = useState<{ id: string; label: string }[]>([
     { id: "en", label: "İngilizce" },
   ]);
@@ -892,7 +930,14 @@ export default function AppPage() {
     fetch(`${API_URL}/api/render-options`)
       .then((r) => r.json())
       .then((data) => {
-        if (data && data.aspects?.length && data.positions?.length && data.colors?.length && data.credits) {
+        if (
+          data &&
+          data.aspects?.length &&
+          data.positions?.length &&
+          data.colors?.length &&
+          data.animations?.length &&
+          data.credits
+        ) {
           setRenderOptions(data);
         }
       })
@@ -992,6 +1037,7 @@ export default function AppPage() {
     setCurrentStyle(jobData.style || "klasik");
     setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
     setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
+    setCurrentSubtitleAnimation(jobData.subtitle_animation || "statik");
     setStatus("done");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1014,6 +1060,7 @@ export default function AppPage() {
     formData.append("subtitle_color", subtitleColor);
     formData.append("subtitle_position", subtitlePosition);
     formData.append("aspect", aspect);
+    formData.append("subtitle_animation", subtitleAnimation);
     if (canCustomize) {
       formData.append("clip_count", String(clipCount));
       formData.append("min_duration", String(preset.min));
@@ -1044,6 +1091,7 @@ export default function AppPage() {
         setCurrentStyle(jobData.style || "klasik");
         setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
         setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
+        setCurrentSubtitleAnimation(jobData.subtitle_animation || "statik");
         clearInterval(poll);
         fetch(`${API_URL}/api/auth/me`, { headers: authHeaders(token) }).then((r) => r.json()).then(setMe);
         fetch(`${API_URL}/api/jobs`, { headers: authHeaders(token) }).then((r) => r.json()).then(setHistory);
@@ -1246,6 +1294,23 @@ export default function AppPage() {
             </label>
           </div>
 
+          <div className="w-full flex flex-col sm:flex-row gap-3 text-left">
+            <label className="flex-1 text-xs font-medium text-zinc-400">
+              Altyazı animasyonu
+              <select
+                value={subtitleAnimation}
+                onChange={(e) => setSubtitleAnimation(e.target.value)}
+                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+              >
+                {renderOptions.animations.map((a) => (
+                  <option key={a.id} value={a.id} className="bg-black">
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           <div className="w-full text-left">
             <span className="block text-xs font-medium text-zinc-400 mb-2">Altyazı rengi</span>
             <div className="flex items-center gap-2.5">
@@ -1365,6 +1430,7 @@ export default function AppPage() {
                 defaultColor={currentSubtitleColor}
                 defaultPosition={currentSubtitlePosition}
                 defaultAspect={currentAspect}
+                defaultAnimation={currentSubtitleAnimation}
                 subtitleLanguages={subtitleLanguages}
               />
             ))}
@@ -1380,6 +1446,7 @@ export default function AppPage() {
                 defaultColor={currentSubtitleColor}
                 defaultPosition={currentSubtitlePosition}
                 defaultAspect={currentAspect}
+                defaultAnimation={currentSubtitleAnimation}
               />
             )}
           </div>

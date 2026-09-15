@@ -116,6 +116,20 @@ ASPECT_PRESETS = {
 }
 DEFAULT_ASPECT = "9:16"
 
+# Altyazi animasyonu - "statik" tum kelimeler ayni anda gorunur (klasik alt yazi),
+# "karaoke" ise o an konusulan kelimeyi ayri bir vurgu rengiyle/hafif buyuterek
+# one cikarir (TikTok/CapCut/Opus Clip'te populer olan "kelime vurgulu altyazi" formati).
+SUBTITLE_ANIMATIONS = {
+    "statik": {"label": "Statik (klasik)"},
+    "karaoke": {"label": "Kelime vurgulu (karaoke)"},
+}
+DEFAULT_SUBTITLE_ANIMATION = "statik"
+
+# Karaoke modunda aktif kelimeyi vurgulamak icin kullanilan sabit renk - kullanicinin
+# sectigi subtitle_color hala TUM metnin temel (PrimaryColour) rengini belirler,
+# bu sadece o an soylenen kelimeyi one cikaran AYRI bir vurgu rengidir.
+KARAOKE_HIGHLIGHT_HEX = "#FFEB3B"
+
 
 def _hex_to_ass_color(hex_color: str) -> str:
     """'#RRGGBB' formatindaki bir rengi ASS altyazi formatinin bekledigi
@@ -273,22 +287,54 @@ def generate_ass(
     subtitle_color: str | None = None,
     position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
+    animation: str = DEFAULT_SUBTITLE_ANIMATION,
 ):
     """Zaten YENI zaman eksenine gore (0'dan baslayan) remap edilmis kelimelerden
-    stili gomulu bir .ass altyazi dosyasi uretir."""
+    stili gomulu bir .ass altyazi dosyasi uretir.
+
+    animation="statik" (varsayilan): her grup (chunk) tek bir Dialogue satiri -
+    tum kelimeler ayni anda, ayni renkte gorunur (eski/klasik davranis, degismedi).
+
+    animation="karaoke": her grup icin, grup icindeki HER kelime kadar ayri
+    Dialogue satiri uretilir - o an "aktif" (konusulan) kelime vurgu rengiyle
+    ve hafifce buyutulerek gosterilir, digerleri normal stil rengiyle kalir.
+    Boylece video oynarken kelime kelime vurgu kayarak ilerler (karaoke hissi)."""
     preset = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])
     chunk_size = preset["chunk_size"]
+    highlight_color = _hex_to_ass_color(KARAOKE_HIGHLIGHT_HEX)
     lines = []
     for i in range(0, len(words), chunk_size):
         group = words[i:i + chunk_size]
         if not group:
             continue
-        start = group[0]["start"]
-        end = group[-1]["end"]
-        text = "".join(w["word"] for w in group).strip().replace("\n", " ")
-        if not text:
-            continue
-        lines.append(f"Dialogue: 0,{_format_ass_time(start)},{_format_ass_time(end)},Default,,0,0,0,,{text}")
+        if animation == "karaoke":
+            chunk_end = group[-1]["end"]
+            for j, active in enumerate(group):
+                w_start = active["start"]
+                w_end = group[j + 1]["start"] if j + 1 < len(group) else chunk_end
+                if w_end <= w_start:
+                    w_end = max(active["end"], w_start + 0.05)
+                parts = []
+                for k, w in enumerate(group):
+                    if k == j:
+                        parts.append(
+                            f"{{\\c{highlight_color}\\b1\\fscx112\\fscy112}}{w['word']}{{\\r}}"
+                        )
+                    else:
+                        parts.append(w["word"])
+                text = "".join(parts).strip().replace("\n", " ")
+                if not text:
+                    continue
+                lines.append(
+                    f"Dialogue: 0,{_format_ass_time(w_start)},{_format_ass_time(w_end)},Default,,0,0,0,,{text}"
+                )
+        else:
+            start = group[0]["start"]
+            end = group[-1]["end"]
+            text = "".join(w["word"] for w in group).strip().replace("\n", " ")
+            if not text:
+                continue
+            lines.append(f"Dialogue: 0,{_format_ass_time(start)},{_format_ass_time(end)},Default,,0,0,0,,{text}")
     header = _ass_header(style, subtitle_color=subtitle_color, position=position, aspect=aspect)
     ass_path.write_text(header + "\n".join(lines), encoding="utf-8")
 
@@ -386,6 +432,7 @@ def make_vertical_clip(
     subtitle_color: str | None = None,
     position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
+    animation: str = DEFAULT_SUBTITLE_ANIMATION,
 ) -> Path:
     """Videodan bir klip keser (dolgu kelime/uzun sessizlik varsa temizler),
     secilen en-boy oranina kirpar ve altyazi ekler."""
@@ -400,6 +447,7 @@ def make_vertical_clip(
     generate_ass(
         remapped_words, ass_path, style=style,
         subtitle_color=subtitle_color, position=position, aspect=aspect,
+        animation=animation,
     )
 
     aspect_preset = ASPECT_PRESETS.get(aspect, ASPECT_PRESETS[DEFAULT_ASPECT])
