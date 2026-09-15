@@ -42,6 +42,13 @@ SADECE, verilenle AYNI UZUNLUKTA bir JSON dizisi dondur, baska hicbir metin ekle
 _anthropic_client = None
 _gemini_client = None
 
+# AI saglayicisina giden bir istek bu sureden (saniye) uzun surerse iptal edilir.
+# Bu OLMADAN, bir ag sorununda (ör. saglayicinin yavas/asili kalmasi) is
+# sonsuza kadar "finding_highlights"/ceviri adiminda takili kalirdi - kullanici
+# ne hata gorur ne de is ilerler. Timeout sayesinde en gec bu sure sonra
+# run_pipeline'in except bloguna dusup anlasilir bir hata veriyor.
+AI_REQUEST_TIMEOUT_SECONDS = 90
+
 
 def _get_anthropic_client():
     global _anthropic_client
@@ -54,6 +61,7 @@ def _get_anthropic_client():
         _anthropic_client = Anthropic(
             api_key=os.environ.get("ANTHROPIC_API_KEY"),
             default_headers=headers or None,
+            timeout=AI_REQUEST_TIMEOUT_SECONDS,
         )
     return _anthropic_client
 
@@ -62,7 +70,11 @@ def _get_gemini_client():
     global _gemini_client
     if _gemini_client is None:
         from google import genai
-        _gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+        from google.genai import types
+        _gemini_client = genai.Client(
+            api_key=os.environ.get("GEMINI_API_KEY"),
+            http_options=types.HttpOptions(timeout=AI_REQUEST_TIMEOUT_SECONDS * 1000),
+        )
     return _gemini_client
 
 
