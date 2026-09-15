@@ -147,6 +147,19 @@ def _validate_render_options(
     return color, position, asp
 
 
+def _resolve_clip_option(payload_value, is_valid, existing: dict, existing_key: str, row: dict, row_key: str, default):
+    """Klip duzenleme/ekleme (mini editor) icin genel deger cozumleme sirasi:
+    1) istekte gecerli bir deger gonderildiyse onu kullan,
+    2) yoksa klibin kendi (daha once kaydedilmis) degerini kullan,
+    3) o da yoksa isin (job) varsayilanini kullan,
+    4) o da yoksa sabit varsayilana dus."""
+    if payload_value is not None and is_valid(payload_value):
+        return payload_value
+    if existing.get(existing_key):
+        return existing[existing_key]
+    return row.get(row_key) or default
+
+
 class AuthPayload(BaseModel):
     email: str
     password: str
@@ -160,6 +173,11 @@ class ProfilePayload(BaseModel):
 class RetrimPayload(BaseModel):
     start: float
     end: float
+    style: str | None = None
+    remove_fillers: bool | None = None
+    subtitle_color: str | None = None
+    subtitle_position: str | None = None
+    aspect: str | None = None
 
 
 class AddClipPayload(BaseModel):
@@ -168,6 +186,11 @@ class AddClipPayload(BaseModel):
     start: float
     end: float
     title: str | None = None
+    style: str | None = None
+    remove_fillers: bool | None = None
+    subtitle_color: str | None = None
+    subtitle_position: str | None = None
+    aspect: str | None = None
 
 
 class PasswordPayload(BaseModel):
@@ -782,6 +805,11 @@ def run_pipeline(
                 "url": f"/files/{job_id}/{path.name}",
                 "cover_url": f"/files/{job_id}/{cover_path.name}" if cover_path else None,
                 "subtitles_en_url": subtitles_en_url,
+                "style": style,
+                "subtitle_color": subtitle_color,
+                "subtitle_position": subtitle_position,
+                "aspect": aspect,
+                "remove_fillers": remove_fillers,
             })
 
         _set_job(job_id, status="done", clips_json=json.dumps(results))
@@ -990,11 +1018,26 @@ async def retrim_clip(
     if clip_index < 0 or clip_index >= len(clips):
         raise HTTPException(status_code=404, detail="Klip bulunamadı")
 
-    style = row["style"] or DEFAULT_STYLE
-    remove_fillers = bool(row["remove_fillers"])
-    color = row.get("subtitle_color") or DEFAULT_SUBTITLE_COLOR
-    position = row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION
-    asp = row.get("aspect") or DEFAULT_ASPECT
+    existing_clip = clips[clip_index]
+    style = _resolve_clip_option(
+        payload.style, lambda v: v in STYLE_PRESETS, existing_clip, "style", row, "style", DEFAULT_STYLE,
+    )
+    remove_fillers = (
+        payload.remove_fillers if payload.remove_fillers is not None
+        else existing_clip["remove_fillers"] if "remove_fillers" in existing_clip
+        else bool(row["remove_fillers"])
+    )
+    color = _resolve_clip_option(
+        payload.subtitle_color, lambda v: bool(HEX_COLOR_RE.match(v)),
+        existing_clip, "subtitle_color", row, "subtitle_color", DEFAULT_SUBTITLE_COLOR,
+    )
+    position = _resolve_clip_option(
+        payload.subtitle_position, lambda v: v in SUBTITLE_POSITIONS,
+        existing_clip, "subtitle_position", row, "subtitle_position", DEFAULT_SUBTITLE_POSITION,
+    )
+    asp = _resolve_clip_option(
+        payload.aspect, lambda v: v in ASPECT_PRESETS, existing_clip, "aspect", row, "aspect", DEFAULT_ASPECT,
+    )
     name = f"clip_{clip_index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
 
@@ -1023,6 +1066,11 @@ async def retrim_clip(
         "url": f"/files/{job_id}/{path.name}?v={cache_bust}",
         "cover_url": f"/files/{job_id}/{cover_path.name}?v={cache_bust}" if cover_path else None,
         "subtitles_en_url": subtitles_en_url,
+        "style": style,
+        "subtitle_color": color,
+        "subtitle_position": position,
+        "aspect": asp,
+        "remove_fillers": remove_fillers,
     }
 
     with get_conn() as conn:
@@ -1098,11 +1146,19 @@ async def add_clip(
                 ),
             )
 
-    style = row["style"] or DEFAULT_STYLE
-    remove_fillers = bool(row["remove_fillers"])
-    color = row.get("subtitle_color") or DEFAULT_SUBTITLE_COLOR
-    position = row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION
-    asp = row.get("aspect") or DEFAULT_ASPECT
+    style = _resolve_clip_option(
+        payload.style, lambda v: v in STYLE_PRESETS, {}, "style", row, "style", DEFAULT_STYLE,
+    )
+    remove_fillers = payload.remove_fillers if payload.remove_fillers is not None else bool(row["remove_fillers"])
+    color = _resolve_clip_option(
+        payload.subtitle_color, lambda v: bool(HEX_COLOR_RE.match(v)), {}, "subtitle_color", row, "subtitle_color", DEFAULT_SUBTITLE_COLOR,
+    )
+    position = _resolve_clip_option(
+        payload.subtitle_position, lambda v: v in SUBTITLE_POSITIONS, {}, "subtitle_position", row, "subtitle_position", DEFAULT_SUBTITLE_POSITION,
+    )
+    asp = _resolve_clip_option(
+        payload.aspect, lambda v: v in ASPECT_PRESETS, {}, "aspect", row, "aspect", DEFAULT_ASPECT,
+    )
     index = len(clips)
     name = f"clip_{index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
@@ -1135,6 +1191,11 @@ async def add_clip(
         "cover_url": f"/files/{job_id}/{cover_path.name}" if cover_path else None,
         "subtitles_en_url": subtitles_en_url,
         "manual": True,
+        "style": style,
+        "subtitle_color": color,
+        "subtitle_position": position,
+        "aspect": asp,
+        "remove_fillers": remove_fillers,
     }
     clips.append(new_clip)
 

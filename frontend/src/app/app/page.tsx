@@ -18,6 +18,10 @@ type Clip = {
   end?: number;
   subtitles_en_url?: string | null;
   manual?: boolean;
+  style?: string;
+  subtitle_color?: string;
+  subtitle_position?: string;
+  aspect?: string;
 };
 type JobStatus =
   | "idle"
@@ -116,6 +120,99 @@ function scoreColor(score: number): string {
   if (score >= 75) return "text-orange-400 bg-orange-500/10 border-orange-500/20";
   if (score >= 50) return "text-amber-400 bg-amber-500/10 border-amber-500/20";
   return "text-zinc-400 bg-white/5 border-white/10";
+}
+
+function RenderOptionsFields({
+  styles,
+  renderOptions,
+  style,
+  onStyleChange,
+  color,
+  onColorChange,
+  position,
+  onPositionChange,
+  aspect,
+  onAspectChange,
+}: {
+  styles: Record<string, string>;
+  renderOptions: RenderOptions;
+  style: string;
+  onStyleChange: (v: string) => void;
+  color: string;
+  onColorChange: (v: string) => void;
+  position: string;
+  onPositionChange: (v: string) => void;
+  aspect: string;
+  onAspectChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <label className="flex-1 text-[11px] font-medium text-zinc-500">
+          Altyazı stili
+          <select
+            value={style}
+            onChange={(e) => onStyleChange(e.target.value)}
+            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+          >
+            {Object.entries(styles).map(([key, label]) => (
+              <option key={key} value={key} className="bg-black">
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex-1 text-[11px] font-medium text-zinc-500">
+          Format
+          <select
+            value={aspect}
+            onChange={(e) => onAspectChange(e.target.value)}
+            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+          >
+            {renderOptions.aspects.map((a) => (
+              <option key={a.id} value={a.id} className="bg-black">
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="text-[11px] font-medium text-zinc-500">
+        Altyazı konumu
+        <select
+          value={position}
+          onChange={(e) => onPositionChange(e.target.value)}
+          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+        >
+          {renderOptions.positions.map((pos) => (
+            <option key={pos.id} value={pos.id} className="bg-black">
+              {pos.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div>
+        <span className="block text-[11px] font-medium text-zinc-500 mb-1.5">Altyazı rengi</span>
+        <div className="flex items-center gap-2">
+          {renderOptions.colors.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onColorChange(c.hex)}
+              title={c.label}
+              aria-label={c.label}
+              style={{ backgroundColor: c.hex }}
+              className={`h-5 w-5 rounded-full border transition ${
+                color.toLowerCase() === c.hex.toLowerCase()
+                  ? "ring-2 ring-offset-1 ring-offset-black ring-orange-500 border-transparent"
+                  : "border-white/20"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TrimScrubber({
@@ -241,6 +338,12 @@ function ClipCard({
   onUpdated,
   onDeleted,
   aspectClass,
+  styles,
+  renderOptions,
+  defaultStyle,
+  defaultColor,
+  defaultPosition,
+  defaultAspect,
 }: {
   clip: Clip;
   index: number;
@@ -249,10 +352,20 @@ function ClipCard({
   onUpdated: (index: number, updated: Clip) => void;
   onDeleted: (clips: Clip[]) => void;
   aspectClass: string;
+  styles: Record<string, string>;
+  renderOptions: RenderOptions;
+  defaultStyle: string;
+  defaultColor: string;
+  defaultPosition: string;
+  defaultAspect: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [start, setStart] = useState(clip.start ?? 0);
   const [end, setEnd] = useState(clip.end ?? 0);
+  const [clipStyle, setClipStyle] = useState(clip.style ?? defaultStyle);
+  const [clipColor, setClipColor] = useState(clip.subtitle_color ?? defaultColor);
+  const [clipPosition, setClipPosition] = useState(clip.subtitle_position ?? defaultPosition);
+  const [clipAspect, setClipAspect] = useState(clip.aspect ?? defaultAspect);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -265,7 +378,14 @@ function ClipCard({
       const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${index}/retrim`, {
         method: "POST",
         headers: { ...authHeaders(token), "Content-Type": "application/json" },
-        body: JSON.stringify({ start, end }),
+        body: JSON.stringify({
+          start,
+          end,
+          style: clipStyle,
+          subtitle_color: clipColor,
+          subtitle_position: clipPosition,
+          aspect: clipAspect,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -376,6 +496,23 @@ function ClipCard({
                 setEnd(e);
               }}
             />
+            <div className="pt-1 border-t border-white/5">
+              <p className="text-[11px] text-zinc-500 mt-2 mb-1.5">
+                Bu klip için altyazı stilini ve formatını ayrıca değiştirebilirsin
+              </p>
+              <RenderOptionsFields
+                styles={styles}
+                renderOptions={renderOptions}
+                style={clipStyle}
+                onStyleChange={setClipStyle}
+                color={clipColor}
+                onColorChange={setClipColor}
+                position={clipPosition}
+                onPositionChange={setClipPosition}
+                aspect={clipAspect}
+                onAspectChange={setClipAspect}
+              />
+            </div>
             {editError && (
               <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
                 {editError}
@@ -400,17 +537,33 @@ function AddClipCard({
   token,
   aspectClass,
   onAdded,
+  styles,
+  renderOptions,
+  defaultStyle,
+  defaultColor,
+  defaultPosition,
+  defaultAspect,
 }: {
   jobId: string;
   token: string;
   aspectClass: string;
   onAdded: (clips: Clip[]) => void;
+  styles: Record<string, string>;
+  renderOptions: RenderOptions;
+  defaultStyle: string;
+  defaultColor: string;
+  defaultPosition: string;
+  defaultAspect: string;
 }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(30);
   const [durationKnown, setDurationKnown] = useState(false);
   const [title, setTitle] = useState("");
+  const [clipStyle, setClipStyle] = useState(defaultStyle);
+  const [clipColor, setClipColor] = useState(defaultColor);
+  const [clipPosition, setClipPosition] = useState(defaultPosition);
+  const [clipAspect, setClipAspect] = useState(defaultAspect);
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -421,7 +574,15 @@ function AddClipCard({
       const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/add`, {
         method: "POST",
         headers: { ...authHeaders(token), "Content-Type": "application/json" },
-        body: JSON.stringify({ start, end, title: title.trim() || undefined }),
+        body: JSON.stringify({
+          start,
+          end,
+          title: title.trim() || undefined,
+          style: clipStyle,
+          subtitle_color: clipColor,
+          subtitle_position: clipPosition,
+          aspect: clipAspect,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -490,6 +651,18 @@ function AddClipCard({
         placeholder="Klip başlığı (opsiyonel)"
         className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
       />
+      <RenderOptionsFields
+        styles={styles}
+        renderOptions={renderOptions}
+        style={clipStyle}
+        onStyleChange={setClipStyle}
+        color={clipColor}
+        onColorChange={setClipColor}
+        position={clipPosition}
+        onPositionChange={setClipPosition}
+        aspect={clipAspect}
+        onAspectChange={setClipAspect}
+      />
       {addError && (
         <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
           {addError}
@@ -527,6 +700,9 @@ export default function AppPage() {
   const [subtitlePosition, setSubtitlePosition] = useState("alt");
   const [aspect, setAspect] = useState("9:16");
   const [currentAspect, setCurrentAspect] = useState("9:16");
+  const [currentStyle, setCurrentStyle] = useState("klasik");
+  const [currentSubtitleColor, setCurrentSubtitleColor] = useState("#FFFFFF");
+  const [currentSubtitlePosition, setCurrentSubtitlePosition] = useState("alt");
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationResent, setVerificationResent] = useState(false);
 
@@ -602,6 +778,9 @@ export default function AppPage() {
     setCurrentJobId(jobId);
     setClips(jobData.clips || []);
     setCurrentAspect(jobData.aspect || "9:16");
+    setCurrentStyle(jobData.style || "klasik");
+    setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
+    setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
     setStatus("done");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -651,6 +830,9 @@ export default function AppPage() {
       if (jobData.status === "done") {
         setClips(jobData.clips);
         setCurrentAspect(jobData.aspect || "9:16");
+        setCurrentStyle(jobData.style || "klasik");
+        setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
+        setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
         clearInterval(poll);
         fetch(`${API_URL}/api/auth/me`, { headers: authHeaders(token) }).then((r) => r.json()).then(setMe);
         fetch(`${API_URL}/api/jobs`, { headers: authHeaders(token) }).then((r) => r.json()).then(setHistory);
@@ -931,7 +1113,13 @@ export default function AppPage() {
                 token={token}
                 onUpdated={handleClipUpdated}
                 onDeleted={handleClipsReplaced}
-                aspectClass={ASPECT_CLASS[currentAspect] || ASPECT_CLASS["9:16"]}
+                aspectClass={ASPECT_CLASS[clip.aspect || currentAspect] || ASPECT_CLASS["9:16"]}
+                styles={styles}
+                renderOptions={renderOptions}
+                defaultStyle={currentStyle}
+                defaultColor={currentSubtitleColor}
+                defaultPosition={currentSubtitlePosition}
+                defaultAspect={currentAspect}
               />
             ))}
             {currentJobId && status === "done" && (
@@ -940,6 +1128,12 @@ export default function AppPage() {
                 token={token}
                 aspectClass={ASPECT_CLASS[currentAspect] || ASPECT_CLASS["9:16"]}
                 onAdded={handleClipsReplaced}
+                styles={styles}
+                renderOptions={renderOptions}
+                defaultStyle={currentStyle}
+                defaultColor={currentSubtitleColor}
+                defaultPosition={currentSubtitlePosition}
+                defaultAspect={currentAspect}
               />
             )}
           </div>
