@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -17,6 +17,7 @@ type Clip = {
   start?: number;
   end?: number;
   subtitles_en_url?: string | null;
+  manual?: boolean;
 };
 type JobStatus =
   | "idle"
@@ -123,12 +124,14 @@ function TrimScrubber({
   start,
   end,
   onChange,
+  onDurationLoaded,
 }: {
   jobId: string;
   token: string;
   start: number;
   end: number;
   onChange: (start: number, end: number) => void;
+  onDurationLoaded?: (duration: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -188,6 +191,7 @@ function TrimScrubber({
         onLoadedMetadata={(e) => {
           const d = e.currentTarget.duration;
           setDuration(d);
+          onDurationLoaded?.(d);
           e.currentTarget.currentTime = start;
         }}
         muted
@@ -235,6 +239,7 @@ function ClipCard({
   jobId,
   token,
   onUpdated,
+  onDeleted,
   aspectClass,
 }: {
   clip: Clip;
@@ -242,6 +247,7 @@ function ClipCard({
   jobId: string | null;
   token: string;
   onUpdated: (index: number, updated: Clip) => void;
+  onDeleted: (clips: Clip[]) => void;
   aspectClass: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -249,6 +255,7 @@ function ClipCard({
   const [end, setEnd] = useState(clip.end ?? 0);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleRetrim() {
     if (!jobId) return;
@@ -274,6 +281,28 @@ function ClipCard({
     }
   }
 
+  async function handleDelete() {
+    if (!jobId) return;
+    if (!window.confirm("Bu klibi silmek istediğine emin misin?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${index}`, {
+        method: "DELETE",
+        headers: authHeaders(token),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditError(data.detail || "Silinemedi");
+        return;
+      }
+      onDeleted(data.clips);
+    } catch {
+      setEditError("Sunucuya ulaşılamadı");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const canEdit = jobId && clip.start !== undefined && clip.end !== undefined;
 
   return (
@@ -288,11 +317,15 @@ function ClipCard({
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <p className="font-medium text-sm text-white">{clip.title}</p>
-          {typeof clip.score === "number" && (
+          {typeof clip.score === "number" ? (
             <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${scoreColor(clip.score)}`}>
               {clip.score}/100
             </span>
-          )}
+          ) : clip.manual ? (
+            <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full border text-zinc-400 bg-white/5 border-white/10">
+              Elle eklendi
+            </span>
+          ) : null}
         </div>
         <p className="text-xs text-zinc-500 mt-1">{clip.reason}</p>
 
@@ -304,6 +337,16 @@ function ClipCard({
             >
               {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
               {editing ? "Vazgeç" : "Düzenle"}
+            </button>
+          )}
+          {clip.manual && jobId && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1 text-zinc-500 hover:text-red-400 font-medium transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleting ? "Siliniyor..." : "Sil"}
             </button>
           )}
           {clip.subtitles_en_url && (
@@ -348,6 +391,117 @@ function ClipCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AddClipCard({
+  jobId,
+  token,
+  aspectClass,
+  onAdded,
+}: {
+  jobId: string;
+  token: string;
+  aspectClass: string;
+  onAdded: (clips: Clip[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [start, setStart] = useState(0);
+  const [end, setEnd] = useState(30);
+  const [durationKnown, setDurationKnown] = useState(false);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  async function handleAdd() {
+    setSaving(true);
+    setAddError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/add`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ start, end, title: title.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAddError(data.detail || "Klip oluşturulamadı");
+        return;
+      }
+      onAdded(data.clips);
+      setOpen(false);
+      setTitle("");
+    } catch {
+      setAddError("Sunucuya ulaşılamadı");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className={`flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.02] hover:border-orange-500/40 hover:bg-white/[0.04] transition-colors text-zinc-400 hover:text-white ${aspectClass}`}
+      >
+        <Plus className="h-5 w-5" />
+        <span className="text-sm font-medium">Yeni klip ekle</span>
+        <span className="text-[11px] text-zinc-500 px-4 text-center">
+          Videonun istediğin herhangi bir anından elle klip oluştur
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white/[0.03] border border-orange-500/30 rounded-xl overflow-hidden text-left backdrop-blur-sm p-3 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-white flex items-center gap-1.5">
+          <Scissors className="h-3.5 w-3.5 text-orange-400" />
+          Yeni klip
+        </p>
+        <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <p className="text-[11px] text-zinc-500">
+        Tutamaçları sürükleyerek videonun hangi aralığının klip olacağını seç
+      </p>
+      <TrimScrubber
+        jobId={jobId}
+        token={token}
+        start={start}
+        end={end}
+        onChange={(s, e) => {
+          setStart(s);
+          setEnd(e);
+        }}
+        onDurationLoaded={(d) => {
+          if (!durationKnown) {
+            setEnd(Math.min(30, d));
+            setDurationKnown(true);
+          }
+        }}
+      />
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Klip başlığı (opsiyonel)"
+        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+      />
+      {addError && (
+        <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+          {addError}
+        </p>
+      )}
+      <button
+        onClick={handleAdd}
+        disabled={saving || end - start < 3}
+        className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-orange-600 transition disabled:opacity-40"
+      >
+        {saving ? "Oluşturuluyor..." : "Klip oluştur"}
+      </button>
     </div>
   );
 }
@@ -427,6 +581,29 @@ export default function AppPage() {
 
   function handleClipUpdated(index: number, updated: Clip) {
     setClips((prev) => prev.map((c, i) => (i === index ? updated : c)));
+  }
+
+  function handleClipsReplaced(updatedClips: Clip[]) {
+    setClips(updatedClips);
+    if (token) {
+      fetch(`${API_URL}/api/auth/me`, { headers: authHeaders(token) })
+        .then((r) => r.json())
+        .then(setMe)
+        .catch(() => {});
+    }
+  }
+
+  async function handleOpenHistoryJob(jobId: string) {
+    if (!token) return;
+    setError(null);
+    const res = await fetch(`${API_URL}/api/jobs/${jobId}`, { headers: authHeaders(token) });
+    if (!res.ok) return;
+    const jobData = await res.json();
+    setCurrentJobId(jobId);
+    setClips(jobData.clips || []);
+    setCurrentAspect(jobData.aspect || "9:16");
+    setStatus("done");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const canCustomize = !!me && CUSTOMIZABLE_PLANS.includes(me.effective_plan ?? me.user.plan);
@@ -743,7 +920,7 @@ export default function AppPage() {
           </p>
         )}
 
-        {clips.length > 0 && (
+        {(clips.length > 0 || (currentJobId && status === "done")) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full mt-4">
             {clips.map((clip, i) => (
               <ClipCard
@@ -753,9 +930,18 @@ export default function AppPage() {
                 jobId={currentJobId}
                 token={token}
                 onUpdated={handleClipUpdated}
+                onDeleted={handleClipsReplaced}
                 aspectClass={ASPECT_CLASS[currentAspect] || ASPECT_CLASS["9:16"]}
               />
             ))}
+            {currentJobId && status === "done" && (
+              <AddClipCard
+                jobId={currentJobId}
+                token={token}
+                aspectClass={ASPECT_CLASS[currentAspect] || ASPECT_CLASS["9:16"]}
+                onAdded={handleClipsReplaced}
+              />
+            )}
           </div>
         )}
 
@@ -766,7 +952,14 @@ export default function AppPage() {
             </h2>
             <div className="flex flex-col divide-y divide-white/10 border border-white/10 rounded-xl overflow-hidden bg-white/[0.03] backdrop-blur-sm">
               {history.map((job) => (
-                <div key={job.job_id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <button
+                  key={job.job_id}
+                  onClick={() => job.status === "done" && handleOpenHistoryJob(job.job_id)}
+                  disabled={job.status !== "done"}
+                  className={`flex items-center justify-between px-4 py-3 text-sm text-left w-full transition-colors ${
+                    job.status === "done" ? "hover:bg-white/[0.05] cursor-pointer" : "cursor-default"
+                  } ${job.job_id === currentJobId ? "bg-orange-500/[0.06]" : ""}`}
+                >
                   <div className="min-w-0">
                     <p className="font-medium text-zinc-200 truncate max-w-[220px]">{job.filename}</p>
                     <p className="text-xs text-zinc-500">
@@ -787,7 +980,7 @@ export default function AppPage() {
                       ? `${job.clips?.length ?? 0} klip${job.credit_cost ? ` · ${job.credit_cost} kredi` : ""}`
                       : STATUS_LABELS[job.status] ?? job.status}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           </div>

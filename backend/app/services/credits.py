@@ -38,3 +38,11 @@ def compute_credit_cost(duration_seconds: float, clip_count: int) -> int:
     base = CREDIT_COST_BASE + max(1, clip_count) * CREDIT_COST_PER_CLIP
     mult = duration_multiplier(max(0.0, duration_seconds))
     return max(1, math.ceil(base * mult))
+
+
+def compute_added_clip_cost(duration_seconds: float) -> int:
+    """Isi zaten tamamlanmis bir videoya, kullanicinin SONRADAN elle eklemek
+    istedigi TEK bir klibin ek kredi maliyetini hesaplar - ayni sure
+    carpani mantigi (uzun video = daha pahali) burada da gecerli."""
+    mult = duration_multiplier(max(0.0, duration_seconds))
+    return max(1, math.ceil(CREDIT_COST_PER_CLIP * mult))

@@ -31,7 +31,13 @@ from app.auth import (
     verify_password,
 )
 from app.db import AVATAR_OPTIONS, CUSTOMIZABLE_CLIP_PLANS, get_conn, init_db
-from app.services.credits import CREDIT_COST_BASE, CREDIT_COST_PER_CLIP, CREDIT_LIMITS, compute_credit_cost
+from app.services.credits import (
+    CREDIT_COST_BASE,
+    CREDIT_COST_PER_CLIP,
+    CREDIT_LIMITS,
+    compute_added_clip_cost,
+    compute_credit_cost,
+)
 from app.services.email import send_email
 from app.services.highlights import find_highlights, translate_to_english
 from app.services.transcribe import transcribe
@@ -154,6 +160,14 @@ class ProfilePayload(BaseModel):
 class RetrimPayload(BaseModel):
     start: float
     end: float
+
+
+class AddClipPayload(BaseModel):
+    """Kullanicinin orijinal video uzerinde elle sectigi bir araliktan
+    yeni (AI'nin onermedigi) bir klip olusturmak icin gonderdigi veri."""
+    start: float
+    end: float
+    title: str | None = None
 
 
 class PasswordPayload(BaseModel):
@@ -681,6 +695,12 @@ async def leave_org(current_user: dict = Depends(get_current_user)):
 # Pipeline
 # ---------------------------------------------------------------------------
 
+# Bir videoya elle eklenebilecek (AI'nin urettigi + kullanicinin manuel
+# eklediği) toplam klip sayisi ust siniri - depolama/kotuye kullanim
+# koruması.
+MAX_CLIPS_PER_JOB = 15
+
+
 def _set_job(job_id: str, **fields):
     keys = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [job_id]
@@ -1010,6 +1030,163 @@ async def retrim_clip(
         conn.commit()
 
     return clips[clip_index]
+
+
+@app.post("/api/jobs/{job_id}/clips/add")
+async def add_clip(
+    job_id: str,
+    payload: AddClipPayload,
+    current_user: dict = Depends(get_current_user),
+):
+    """Kullanicinin, orijinal video uzerinde AI'nin onerdigi kliplerle sinirli
+    kalmadan kendi sectigi herhangi bir araliktan elle yeni bir klip
+    olusturmasini saglar. Bu ek klip icin ayrica kredi harcanir (bkz.
+    compute_added_clip_cost) ve isin toplam credit_cost'una eklenir. Isin
+    sahibi veya (is bir ekibe aitse) ekibin tum uyeleri kullanabilir."""
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+    row = dict(row)
+
+    if row["status"] != "done":
+        raise HTTPException(status_code=409, detail="Bu iş henüz tamamlanmadı")
+    if payload.end - payload.start < 3:
+        raise HTTPException(status_code=400, detail="Klip en az 3 saniye olmalı")
+    if payload.start < 0:
+        raise HTTPException(status_code=400, detail="Başlangıç negatif olamaz")
+
+    words_json = row.get("words_json")
+    if not words_json:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu iş için transkript verisi saklanmamış, yeni klip oluşturulamıyor",
+        )
+    all_words = json.loads(words_json)
+
+    video_path = UPLOAD_DIR / f"{job_id}_{row['filename']}"
+    if not video_path.exists():
+        raise HTTPException(status_code=409, detail="Orijinal video dosyası bulunamadı")
+
+    clips = json.loads(row["clips_json"]) if row["clips_json"] else []
+    if len(clips) >= MAX_CLIPS_PER_JOB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bir video için en fazla {MAX_CLIPS_PER_JOB} klip oluşturulabilir",
+        )
+
+    duration_seconds = get_video_duration(str(video_path))
+    if duration_seconds and payload.end > duration_seconds + 0.5:
+        raise HTTPException(status_code=400, detail="Bitiş noktası videonun süresini aşıyor")
+
+    added_cost = compute_added_clip_cost(duration_seconds)
+    effective_plan = _effective_plan(current_user, org)
+    limit = CREDIT_LIMITS.get(effective_plan, CREDIT_LIMITS["ucretsiz"])
+    if limit is not None:
+        used = _credits_used_this_month(current_user, org)
+        if used + added_cost > limit:
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    f"Yeni klip {added_cost} kredi gerektiriyor ama bu ay "
+                    f"{max(0, limit - used)} kredin kaldı ({used}/{limit}). "
+                    f"Daha yüksek bir plana geçebilirsin."
+                ),
+            )
+
+    style = row["style"] or DEFAULT_STYLE
+    remove_fillers = bool(row["remove_fillers"])
+    color = row.get("subtitle_color") or DEFAULT_SUBTITLE_COLOR
+    position = row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION
+    asp = row.get("aspect") or DEFAULT_ASPECT
+    index = len(clips)
+    name = f"clip_{index + 1}"
+    job_out_dir = OUTPUT_DIR / job_id
+    title = (payload.title or "").strip() or "Manuel klip"
+
+    try:
+        path = make_vertical_clip(
+            str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
+            style=style, remove_fillers=remove_fillers,
+            subtitle_color=color, position=position, aspect=asp,
+        )
+        cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Klip oluşturulamadı: {e}")
+
+    subtitles_en_url = None
+    if row.get("language") != "en":
+        subtitles_en_url = _generate_english_subtitles(
+            all_words, payload.start, payload.end, style, remove_fillers,
+            job_id, job_out_dir, name,
+        )
+
+    new_clip = {
+        "title": title,
+        "reason": "Elle seçildi",
+        "score": None,
+        "start": payload.start,
+        "end": payload.end,
+        "url": f"/files/{job_id}/{path.name}",
+        "cover_url": f"/files/{job_id}/{cover_path.name}" if cover_path else None,
+        "subtitles_en_url": subtitles_en_url,
+        "manual": True,
+    }
+    clips.append(new_clip)
+
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE jobs SET clips_json = ?, credit_cost = credit_cost + ? WHERE id = ?",
+            (json.dumps(clips), added_cost, job_id),
+        )
+        conn.commit()
+
+    return {"clip": new_clip, "clips": clips, "added_cost": added_cost}
+
+
+@app.delete("/api/jobs/{job_id}/clips/{clip_index}")
+async def delete_clip(
+    job_id: str,
+    clip_index: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Elle eklenmis bir klibi siler - AI'nin ilk urettigi klipler silinemez,
+    onlar yerine /retrim ile yeniden duzenlenebilir. Dosyalarini da diskten
+    kaldirir."""
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+    row = dict(row)
+
+    clips = json.loads(row["clips_json"]) if row["clips_json"] else []
+    if clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=404, detail="Klip bulunamadı")
+    clip = clips[clip_index]
+    if not clip.get("manual"):
+        raise HTTPException(status_code=400, detail="Sadece elle eklenen klipler silinebilir")
+
+    job_out_dir = OUTPUT_DIR / job_id
+    for key in ("url", "cover_url", "subtitles_en_url"):
+        url = clip.get(key)
+        if url:
+            fname = url.split("/")[-1].split("?")[0]
+            (job_out_dir / fname).unlink(missing_ok=True)
+
+    clips.pop(clip_index)
+    with get_conn() as conn:
+        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.commit()
+
+    return {"ok": True, "clips": clips}
 
 
 @app.get("/api/caption-styles")
