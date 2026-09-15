@@ -4,6 +4,7 @@ import Link from "next/link";
 import NavAuth from "@/components/NavAuth";
 import PricingCalculator from "@/components/PricingCalculator";
 import ParallaxStars from "@/components/ParallaxStars";
+import Logo from "@/components/Logo";
 import {
   Sparkles,
   MessageSquareText,
@@ -132,8 +133,7 @@ export default function LandingPage() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-2"
           >
-            <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-            <span className="text-lg font-bold font-display tracking-tight">Klipster</span>
+            <Logo className="h-5" />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -457,8 +457,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-5 gap-12 mb-20 relative z-10">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-              <span className="text-2xl font-bold font-display tracking-tight">Klipster</span>
+              <Logo className="h-8" />
             </div>
             <p className="text-zinc-500 max-w-xs leading-relaxed">
               İçerik üreticiler için sıfırdan tasarlanan yapay zeka klip stüdyosu.

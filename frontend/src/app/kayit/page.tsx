@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
+import Logo from "@/components/Logo";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -65,8 +66,7 @@ function KayitForm() {
 
       <div className="relative z-10 w-full max-w-sm">
         <Link href="/" className="flex items-center gap-2 w-fit">
-          <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-          <span className="font-display font-bold tracking-tight text-lg">Klipster</span>
+          <Logo className="h-5" />
         </Link>
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">

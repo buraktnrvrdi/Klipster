@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Mail } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
+import Logo from "@/components/Logo";
 
 const FAQ: { q: string; a: string }[] = [
   {
@@ -68,8 +69,7 @@ export default function IletisimPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-            <span className="text-lg font-bold font-display tracking-tight">Klipster</span>
+            <Logo className="h-5" />
           </Link>
           <Link
             href="/"

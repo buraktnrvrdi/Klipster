@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2 } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
+import Logo from "@/components/Logo";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -1156,8 +1157,7 @@ export default function AppPage() {
       <header className="fixed top-0 left-0 w-full z-50 pt-6 px-4">
         <nav className="max-w-5xl mx-auto flex items-center justify-between gap-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-            <span className="text-lg font-bold font-display tracking-tight hidden sm:inline">Klipster</span>
+            <Logo className="h-5" />
           </Link>
           <div className="flex items-center gap-4 text-sm min-w-0">
             {me && (

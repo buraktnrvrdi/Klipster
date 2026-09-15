@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, KeyRound, LogOut, Mail, Trash2, UserPlus, Users } from "lucide-react";
 import { AVATAR_META, AvatarBadge } from "@/components/AvatarIcons";
 import ParallaxStars from "@/components/ParallaxStars";
+import Logo from "@/components/Logo";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -350,8 +351,7 @@ export default function ProfilPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-orange-500 rounded-sm rotate-45" />
-            <span className="text-lg font-bold font-display tracking-tight">Klipster</span>
+            <Logo className="h-5" />
           </Link>
           <Link
             href="/app"
