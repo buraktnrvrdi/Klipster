@@ -794,6 +794,17 @@ def run_pipeline(
         _set_job(job_id, status="transcribing")
         segments, detected_language = transcribe(video_path)
         all_words = [w for s in segments for w in s["words"]]
+        if not all_words:
+            # Videoda/ses kaydinda hic konusma algilanamadi - en olasi sebep,
+            # ekran kaydinda mikrofon/sistem sesi izni verilmemis olmasi (item 9,
+            # ekran kaydi ozelligi). Bunu kullaniciya anlasilir bir mesajla
+            # bildiriyoruz; aksi halde faster-whisper/VAD'in ic detaylarindan
+            # kaynaklanan "max() iterable argument is empty" gibi anlasilmaz bir
+            # hata gosterilirdi.
+            raise RuntimeError(
+                "Videoda konusma algilanamadi. Ekran kaydi aliyorsan mikrofon "
+                "veya sistem sesi izni verildiginden emin ol ve tekrar dene."
+            )
         _set_job(job_id, words_json=json.dumps(all_words), language=detected_language)
 
         _set_job(job_id, status="finding_highlights")
