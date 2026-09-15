@@ -67,6 +67,9 @@ const FALLBACK_STYLES: Record<string, string> = {
   klasik: "Klasik",
   vurgu: "Vurgulu (enerjik)",
   minimal: "Minimal",
+  kalin: "Kalın (TikTok tarzı)",
+  editorial: "Editöryel (dergi tarzı)",
+  vintage: "Vintage (retro)",
 };
 
 const DURATION_PRESETS: Record<string, { label: string; min: number; max: number }> = {

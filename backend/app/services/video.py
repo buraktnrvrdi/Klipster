@@ -55,6 +55,36 @@ STYLE_PRESETS = {
             "0,0,1,2,1,2,80,80,110,1"
         ),
     },
+    "kalin": {
+        "label": "Kalın (TikTok tarzı)",
+        "chunk_size": 2,
+        # buyuk, kalin, sari metin + kalin siyah kontur/golge - test sirasinda
+        # BorderStyle=3 (opak kutu) bu ffmpeg/libass kurulumunda hic
+        # render olmadigi (altyazi tamamen görünmez kaldigi) icin bilerek
+        # BorderStyle=1 (kontur+golge) ile yapildi - kanitlanmis calisan yontem.
+        "style_line": (
+            "Style: Default,Arial,88,&H0000FFFF,&H00000000,&H00000000,"
+            "-1,0,1,5,2,2,40,40,150,1"
+        ),
+    },
+    "editorial": {
+        "label": "Editöryel (dergi tarzı)",
+        "chunk_size": 6,
+        # ince serif font, dusuk profilli, zarif bir dergi alt yazisi hissi
+        "style_line": (
+            "Style: Default,DejaVu Serif,50,&H00FFFFFF,&H00000000,&H00000000,"
+            "0,0,1,1,0,2,100,100,130,1"
+        ),
+    },
+    "vintage": {
+        "label": "Vintage (retro)",
+        "chunk_size": 3,
+        # krem/sepya renkli serif metin, koyu kahverengi kontur - eski film hissi
+        "style_line": (
+            "Style: Default,DejaVu Serif,58,&H00B3DEF5,&H000F213B,&H00000000,"
+            "0,0,1,3,2,2,70,70,130,1"
+        ),
+    },
 }
 DEFAULT_STYLE = "klasik"
 
@@ -394,6 +424,10 @@ _FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
     "/Library/Fonts/Arial Bold.ttf",
+    # Linux/Railway konteynerinde macOS fontlari bulunmuyor - Dockerfile'da
+    # kurulan fonts-liberation/fonts-dejavu-core paketlerinden gelen yollar.
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]
 
 
