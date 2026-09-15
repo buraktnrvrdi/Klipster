@@ -1,0 +1,11 @@
+# Railway bu dosyayi otomatik okur - Dockerfile ile build alir, saglik
+# kontrolunu /healthz uzerinden yapar ve cokerse yeniden baslatir.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

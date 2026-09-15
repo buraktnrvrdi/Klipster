@@ -1,0 +1,284 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Sayfa ici (#ozellikler, #fiyatlandirma vb.) baglantilara tiklandiginda
+   aniden degil, yumusak bir kaydirmayla gitsin. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeInUp 0.6s ease-out both;
+}
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 22s linear infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+.animate-glow {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+@keyframes floatBadge {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float-badge {
+  animation: floatBadge 3.5s ease-in-out infinite;
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.animate-waveform {
+  animation: waveform 1s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+@keyframes slideFadeIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-slide-fade {
+  animation: slideFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.7) translateY(8px); }
+  60% { opacity: 1; transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-pop-in {
+  animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.font-display {
+  font-family: var(--font-sora), var(--font-sans), sans-serif;
+}
+
+.bg-dot-grid {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.bg-fade-mask {
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 40%, transparent 100%);
+}
+
+/* Slime -> phone hero animation */
+@keyframes slimeRise {
+  0% { transform: translateY(240px) scale(0.5); }
+  55% { transform: translateY(-14px) scale(1.12); }
+  72% { transform: translateY(6px) scale(0.95); }
+  100% { transform: translateY(0) scale(1); }
+}
+.slime-dot {
+  animation: slimeRise 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes phoneShake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  15% { transform: translateX(-5px) rotate(-2deg); }
+  30% { transform: translateX(5px) rotate(2deg); }
+  45% { transform: translateX(-4px) rotate(-1.3deg); }
+  60% { transform: translateX(4px) rotate(1.3deg); }
+  75% { transform: translateX(-2px) rotate(-0.6deg); }
+  90% { transform: translateX(2px) rotate(0.6deg); }
+}
+.phone-shake {
+  animation: phoneShake 0.6s ease-in-out both;
+  animation-delay: 1.25s;
+}
+
+@keyframes glowIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.glow-in {
+  opacity: 0;
+  animation: glowIn 0.5s ease-out forwards;
+  animation-delay: 1.15s;
+}
+
+@keyframes textRevealLine {
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.text-reveal {
+  opacity: 0;
+  animation: textRevealLine 0.7s ease-out forwards;
+}
+
+@keyframes heroLoopFade {
+  0%, 82% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+.hero-loop {
+  animation: heroLoopFade 6s ease-in-out infinite;
+}
+
+/* Video hero uzerindeki metin, videonun kendi zamanlamasiyla senkron */
+@keyframes videoTextSync {
+  0%, 66% { opacity: 0; transform: translateY(8px); filter: blur(6px); }
+  72% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  94% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  99%, 100% { opacity: 0; transform: translateY(-4px); filter: blur(4px); }
+}
+.video-text-sync {
+  animation: videoTextSync 8.0417s ease-in-out infinite;
+}
+
+@keyframes textShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.animate-text-pulse {
+  background-image: linear-gradient(
+    100deg,
+    #c2410c 0%,
+    #f97316 20%,
+    #fdba74 40%,
+    #f97316 60%,
+    #c2410c 80%,
+    #f97316 100%
+  );
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: textShimmer 5s linear infinite;
+}
+
+/* Scroll-triggered reveal for below-the-fold cards; progressive enhancement,
+   falls back to fully visible (no animation) on browsers without support. */
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: fadeInUp 0.6s ease-out both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 25%;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* "Noir" landing page theme - koyu, turuncu isikli, superdesign referans  */
+/* stilinden esinlenilmis (kirmizi yerine Klipster turuncusu kullanildi). */
+/* ---------------------------------------------------------------------- */
+
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes borderSpin {
+  from { --gradient-angle: 0deg; }
+  to { --gradient-angle: 360deg; }
+}
+
+@keyframes animStar {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-2000px); }
+}
+
+.noir-shiny-cta {
+  --gradient-angle: 0deg;
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  padding: 1rem 2.25rem;
+  background:
+    linear-gradient(#000000, #000000) padding-box,
+    conic-gradient(
+      from var(--gradient-angle),
+      transparent 0%,
+      #f97316 5%,
+      #f97316 15%,
+      #f97316 30%,
+      transparent 40%,
+      transparent 100%
+    ) border-box;
+  border: 2px solid transparent;
+  cursor: pointer;
+  isolation: isolate;
+  animation: borderSpin 2.5s linear infinite;
+}
+.noir-shiny-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, white 0.5px, transparent 0);
+  background-size: 4px 4px;
+  opacity: 0.08;
+  z-index: 0;
+}
+
+.noir-gradient-blur {
+  position: fixed;
+  z-index: 40;
+  inset: 0 0 auto 0;
+  height: 120px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), transparent);
+  backdrop-filter: blur(8px);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+.noir-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+}
+
+.noir-text-stroke {
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.12);
+  color: transparent;
+}
+
+.noir-selection::selection {
+  background: #f97316;
+  color: black;
+}

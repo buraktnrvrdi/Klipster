@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+faster-whisper==1.0.3
+anthropic>=0.40.0
+google-genai>=0.3.0
+python-dotenv==1.0.1
+pydantic==2.9.2
+requests==2.32.3
+Pillow>=10.4.0
+bcrypt>=4.1.0
