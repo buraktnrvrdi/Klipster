@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -847,6 +847,13 @@ export default function AppPage() {
   ]);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationResent, setVerificationResent] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem("klipster_token");
@@ -898,6 +905,61 @@ export default function AppPage() {
       })
       .catch(() => {});
   }, [token, router]);
+
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  async function handleStartRecording() {
+    setRecordError(null);
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      recordStreamRef.current = stream;
+      recordChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(recordChunksRef.current, { type: mimeType });
+        const recordedFile = new File([blob], `ekran-kaydi-${Date.now()}.webm`, { type: mimeType });
+        setFile(recordedFile);
+        stream.getTracks().forEach((t) => t.stop());
+        recordStreamRef.current = null;
+        setRecording(false);
+        if (recordTimerRef.current) {
+          clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
+        }
+      };
+      // kullanici tarayicinin kendi "Paylaşımı durdur" dugmesine basarsa
+      // (bizim durdur butonumuzu kullanmadan) kaydi da otomatik sonlandir
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      });
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch {
+      setRecordError("Ekran kaydı başlatılamadı - izin vermen gerekiyor");
+    }
+  }
+
+  function handleStopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  }
 
   function handleLogout() {
     localStorage.removeItem("klipster_token");
@@ -1077,18 +1139,52 @@ export default function AppPage() {
         )}
 
         <div className="w-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 sm:p-10 flex flex-col items-center gap-6 shadow-2xl">
-          <label className="w-full flex flex-col items-center gap-3 border border-dashed border-white/15 rounded-xl px-6 py-8 cursor-pointer hover:border-orange-500/40 hover:bg-white/[0.02] transition-colors">
-            <UploadCloud className="h-6 w-6 text-zinc-500" />
-            <span className="text-sm text-zinc-300 font-medium">
-              {file ? file.name : "Video seçmek için tıkla"}
-            </span>
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="hidden"
-            />
-          </label>
+          {recording ? (
+            <div className="w-full flex flex-col items-center gap-3 border border-red-500/30 bg-red-500/[0.06] rounded-xl px-6 py-8">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+              </span>
+              <span className="text-sm text-red-300 font-medium">
+                Ekran kaydediliyor... {formatTime(recordSeconds)}
+              </span>
+              <button
+                onClick={handleStopRecording}
+                className="flex items-center gap-1.5 bg-red-500 text-white px-4 py-2 rounded-full text-xs font-semibold hover:bg-red-600 transition"
+              >
+                <CircleStop className="h-3.5 w-3.5" />
+                Kaydı durdur
+              </button>
+            </div>
+          ) : (
+            <>
+              <label className="w-full flex flex-col items-center gap-3 border border-dashed border-white/15 rounded-xl px-6 py-8 cursor-pointer hover:border-orange-500/40 hover:bg-white/[0.02] transition-colors">
+                <UploadCloud className="h-6 w-6 text-zinc-500" />
+                <span className="text-sm text-zinc-300 font-medium">
+                  {file ? file.name : "Video seçmek için tıkla"}
+                </span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  className="hidden"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleStartRecording}
+                className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors -mt-2"
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                veya ekranını kaydet
+              </button>
+            </>
+          )}
+          {recordError && (
+            <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 w-full text-center">
+              {recordError}
+            </p>
+          )}
 
           <div className="w-full flex flex-col sm:flex-row gap-3 text-left">
             <label className="flex-1 text-xs font-medium text-zinc-400">
