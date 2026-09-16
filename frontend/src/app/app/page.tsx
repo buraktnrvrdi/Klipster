@@ -46,6 +46,7 @@ type JobSummary = {
   aspect?: string;
   credit_cost?: number;
   uploaded_by?: string | null;
+  error?: string | null;
 };
 type RenderOptions = {
   aspects: { id: string; label: string }[];
@@ -1666,11 +1667,12 @@ export default function AppPage() {
                     </p>
                   </div>
                   <span
+                    title={job.status === "error" ? job.error ?? undefined : undefined}
                     className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${
                       job.status === "done"
                         ? "bg-green-500/10 text-green-400 border-green-500/20"
                         : job.status === "error"
-                        ? "bg-red-500/10 text-red-400 border-red-500/20"
+                        ? "bg-red-500/10 text-red-400 border-red-500/20 cursor-help"
                         : "bg-white/5 text-zinc-400 border-white/10"
                     }`}
                   >

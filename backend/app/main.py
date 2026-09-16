@@ -127,7 +127,7 @@ def _recover_interrupted_jobs():
         updated = conn.execute(
             """
             UPDATE jobs SET status = 'error',
-                error = 'Sunucu yeniden baslatildigi icin bu islem yarida kaldi - lutfen videoyu tekrar yukle'
+                error = 'Sunucu yeniden baslatildigi icin bu islem yarida kaldi - lutfen videoyu tekrar yukle. Bu islem icin kredin harcanmadi.'
             WHERE status NOT IN ('done', 'error')
             """
         )
@@ -993,7 +993,11 @@ def _run_pipeline_locked(
 
         _set_job(job_id, status="done", clips_json=json.dumps(results))
     except Exception as e:
-        _set_job(job_id, status="error", error=str(e))
+        # 'error' durumundaki isler _credits_used_this_month'da sayilmadigi
+        # icin kredi zaten fiilen iade edilmis oluyor - ama kullaniciya bu
+        # acikca soylenmezse "kredim bosa mi gitti" diye endiselenebilir,
+        # bu yuzden hata mesajina bunu ekliyoruz.
+        _set_job(job_id, status="error", error=f"{e} (Bu işlem için kredin harcanmadı.)")
 
 
 def _job_to_dict(row: dict) -> dict:
