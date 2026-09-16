@@ -1,9 +1,12 @@
 """Basit SQLite katmani: kullanicilar, oturumlar (sessions) ve is (job) kayitlari.
 Agir bir ORM yerine stdlib sqlite3 kullaniliyor - ekstra bagimlilik/kurulum riski yok."""
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "storage" / "klipster.db"
+# Testler KLIPSTER_DB_PATH ile ayri/gecici bir dosyaya yonlendirerek gercek
+# gelistirme veritabanina (storage/klipster.db) dokunmadan calisabilir.
+DB_PATH = Path(os.environ.get("KLIPSTER_DB_PATH") or Path(__file__).resolve().parent.parent / "storage" / "klipster.db")
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
