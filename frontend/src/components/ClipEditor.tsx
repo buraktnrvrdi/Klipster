@@ -34,6 +34,7 @@ type Clip = {
   aspect?: string;
   subtitle_animation?: string;
   highlight_color?: string;
+  smart_crop?: boolean;
 };
 
 type JobDetail = {
@@ -46,6 +47,7 @@ type JobDetail = {
   aspect?: string;
   subtitle_animation?: string;
   highlight_color?: string;
+  smart_crop?: boolean;
 };
 
 type RenderOptions = {
@@ -452,6 +454,7 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
   const [clipAspect, setClipAspect] = useState("9:16");
   const [clipAnimation, setClipAnimation] = useState("statik");
   const [clipHighlightColor, setClipHighlightColor] = useState(KARAOKE_HIGHLIGHT);
+  const [clipSmartCrop, setClipSmartCrop] = useState(true);
   const [previewTick, setPreviewTick] = useState(0);
 
   // Kenar cubugundaki animasyon onizlemesini (pop/daktilo/kayan) donguye
@@ -533,6 +536,7 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
         setClipAspect(c.aspect ?? jobData.aspect ?? "9:16");
         setClipAnimation(c.subtitle_animation ?? jobData.subtitle_animation ?? "statik");
         setClipHighlightColor(c.highlight_color ?? jobData.highlight_color ?? KARAOKE_HIGHLIGHT);
+        setClipSmartCrop(c.smart_crop ?? jobData.smart_crop ?? true);
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Yüklenemedi");
       } finally {
@@ -594,6 +598,7 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
           aspect: clipAspect,
           subtitle_animation: clipAnimation,
           highlight_color: clipHighlightColor,
+          smart_crop: clipSmartCrop,
         }),
       });
       const data = await res.json();
@@ -958,6 +963,18 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
               </div>
               <p className="text-[11px] text-zinc-500 mt-1.5">
                 {renderOptions.aspects.find((a) => a.id === clipAspect)?.label}
+              </p>
+              <label className="mt-2.5 flex items-center gap-2 text-xs font-medium text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={clipSmartCrop}
+                  onChange={(e) => setClipSmartCrop(e.target.checked)}
+                  className="h-4 w-4 accent-red-500"
+                />
+                Akıllı kadraj (yüz takibi)
+              </label>
+              <p className="text-[11px] text-zinc-500 mt-1">
+                Klip boyunca kırpmayı konuşan kişinin yüzüne göre otomatik ayarlar
               </p>
             </div>
 

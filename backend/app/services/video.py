@@ -4,6 +4,11 @@ import subprocess
 import textwrap
 from pathlib import Path
 
+try:
+    import cv2  # akilli kadraj (yuz takibi) icin - kurulu degilse sessizce devre disi kalir
+except ImportError:
+    cv2 = None
+
 
 def get_video_duration(path: str) -> float:
     """ffprobe ile bir video dosyasinin suresini (saniye) okur - kredi
@@ -539,6 +544,172 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
     return raw_path
 
 
+# Akilli kadraj (smart crop) icin varsayilan ayarlar - yuz takibi baglamli/
+# jitter'siz calissin diye ornekleme araligi ve maksimum kaydirma hizi.
+SMART_CROP_SAMPLE_INTERVAL = 0.7  # saniye - her ornekte yuz tespiti calistirilir
+SMART_CROP_DETECT_WIDTH = 480  # tespit oncesi karenin kucultulecegi genislik (px)
+SMART_CROP_MIN_DETECTION_RATIO = 0.15  # orneklerin en az bu orani yuz icermeli, yoksa None donulur
+SMART_CROP_MAX_PAN_PER_SEC = 0.15  # saniyede kirpma merkezinin genislik fraksiyonu cinsinden kayabilecegi en fazla mesafe
+SMART_CROP_MIN_KEYFRAME_GAP = 1.5  # saniye - ffmpeg ifadesini makul uzunlukta tutmak icin key frame'leri seyreltme araligi
+
+
+def detect_smart_crop_keyframes(
+    input_path: str, start: float, end: float, target_aspect_ratio: float,
+) -> list[tuple[float, float]] | None:
+    """Klip araliginda (start-end, orijinal video zaman ekseninde) OpenCV'nin
+    Haar cascade yuz dedektoruyle en belirgin (en buyuk) yuzu ornekleyerek,
+    kirpma penceresinin yatay merkezinin zaman icindeki konumunu (0-1 araliginda
+    fraksiyon) dondurur. Donen liste (klip basina gore saniye, x_fraction)
+    ikililerinden olusur - 0 saniye klip basiangicina denk gelir.
+
+    Yuz guvenilir sekilde tespit edilemezse (video ekran kaydi/slayt gibi
+    yuzsuz icerikse ya da OpenCV kurulu degilse) None doner, boylece cagiran
+    taraf eski sabit merkez-kirpma davranisina geri doner. target_aspect_ratio
+    su an tespit mantigini etkilemiyor (gelecekte, ornegin yuz cok genis bir
+    kirpma penceresine sigmiyorsa farkli bir strateji secmek icin saklaniyor)."""
+    if cv2 is None:
+        return None
+
+    duration = end - start
+    if duration <= 0.5:
+        return None
+
+    cap = cv2.VideoCapture(input_path)
+    try:
+        if not cap.isOpened():
+            return None
+
+        frame_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        frame_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        if not frame_w or not frame_h:
+            return None
+
+        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        cascade = cv2.CascadeClassifier(cascade_path)
+        if cascade.empty():
+            return None
+
+        # Uzun kliplerde ornek sayisini makul tutmak icin araligi genisletiyoruz
+        # (cok fazla ornek hem yavaslatir hem de sonda uretilecek ffmpeg ifadesini
+        # gereksiz uzatir - zaten sonda ayrica seyreltme de yapiliyor).
+        sample_interval = max(SMART_CROP_SAMPLE_INTERVAL, duration / 140.0)
+
+        samples: list[tuple[float, float | None]] = []
+        t = 0.0
+        while t < duration:
+            cap.set(cv2.CAP_PROP_POS_MSEC, (start + t) * 1000.0)
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                h, w = frame.shape[:2]
+                scale = SMART_CROP_DETECT_WIDTH / float(w) if w > SMART_CROP_DETECT_WIDTH else 1.0
+                small = cv2.resize(frame, (int(w * scale), int(h * scale))) if scale != 1.0 else frame
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                gray = cv2.equalizeHist(gray)
+                faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                if len(faces) > 0:
+                    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+                    samples.append((t, (fx + fw / 2.0) / small.shape[1]))
+                else:
+                    samples.append((t, None))
+            t += sample_interval
+
+        if not samples:
+            return None
+
+        detected = [s for s in samples if s[1] is not None]
+        if len(detected) / len(samples) < SMART_CROP_MIN_DETECTION_RATIO:
+            return None
+
+        # Yuz bulunamayan orneklerde son bilinen konumu koru (ani ziplamayi engeller).
+        filled: list[tuple[float, float]] = []
+        last_known = detected[0][1]
+        for tt, x in samples:
+            if x is not None:
+                last_known = x
+            filled.append((tt, last_known))
+
+        # Maksimum kayma hizini sinirlayarak (clamped max-step) yumusat -
+        # akilli kadraj yavas/kararli bir "pan" gibi hissettirsin, jitter olmasin.
+        smoothed: list[tuple[float, float]] = [filled[0]]
+        prev_t, prev_x = filled[0]
+        for tt, x in filled[1:]:
+            dt = max(tt - prev_t, 1e-6)
+            max_delta = SMART_CROP_MAX_PAN_PER_SEC * dt
+            delta = max(-max_delta, min(max_delta, x - prev_x))
+            new_x = prev_x + delta
+            smoothed.append((tt, new_x))
+            prev_t, prev_x = tt, new_x
+
+        # Ek olarak kucuk bir hareketli ortalama uygula (kalan yuksek frekansli
+        # titremeyi de temizler).
+        window = 2
+        final: list[tuple[float, float]] = []
+        for i in range(len(smoothed)):
+            lo, hi = max(0, i - window), min(len(smoothed), i + window + 1)
+            avg = sum(p[1] for p in smoothed[lo:hi]) / (hi - lo)
+            final.append((smoothed[i][0], avg))
+
+        # ffmpeg ifadesinin cok uzamamasi icin key frame'leri seyrelt.
+        thinned: list[tuple[float, float]] = [final[0]]
+        for tt, x in final[1:]:
+            if tt - thinned[-1][0] >= SMART_CROP_MIN_KEYFRAME_GAP:
+                thinned.append((tt, x))
+        if thinned[-1][0] < final[-1][0] - 0.01:
+            thinned.append(final[-1])
+
+        if len(thinned) < 2:
+            return None
+
+        return thinned
+    except Exception:
+        return None
+    finally:
+        cap.release()
+
+
+def _remap_smart_crop_keyframes(
+    keyframes: list[tuple[float, float]], start: float, keep_intervals: list[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    """Akilli kadraj key frame zamanlarini (klip basina gore, orijinal video
+    zaman ekseninde) dolgu kelime/sessizlik temizligi sonrasi KISALMIS klip
+    zaman eksenine tasir (bkz. remap_words/_remap_time ile ayni mantik -
+    ffmpeg'e verilecek raw_path zaten bu kisalmis eksende, o yuzden akilli
+    kadraj key frame'leri de ayni eksene tasinmali)."""
+    remapped: list[tuple[float, float]] = []
+    for t, x in keyframes:
+        new_t = _remap_time(start + t, keep_intervals)
+        if remapped and new_t <= remapped[-1][0]:
+            # Bu key frame kesilen (silinen) bir bolgeye denk geliyor - ayni
+            # zaman noktasina cakisan bir onceki key frame ile birlesir,
+            # sifir-uzunluklu segment olusmasini (bolme hatasi) engelliyoruz.
+            remapped[-1] = (remapped[-1][0], x)
+        else:
+            remapped.append((new_t, x))
+    return remapped
+
+
+def _build_smart_crop_x_expr(keyframes: list[tuple[float, float]]) -> str:
+    """(zaman, x_fraction) key frame listesinden, ffmpeg crop filtresinin
+    x parametresi icin kullanilacak parcali-dogrusal (piecewise-linear)
+    interpolasyon ifadesini uretir. Sonuc, kirpma penceresinin kaynak
+    karenin disina cikmamasi icin clip() ile sinirlanir."""
+    def center_expr(x: float) -> str:
+        return f"({x:.5f}*in_w)"
+
+    # Son key frame'den sonraki t degerleri icin: son bilinen konumda sabit kal.
+    expr = center_expr(keyframes[-1][1])
+    for i in range(len(keyframes) - 2, -1, -1):
+        t0, x0 = keyframes[i]
+        t1, x1 = keyframes[i + 1]
+        span = max(t1 - t0, 1e-6)
+        seg = f"({center_expr(x0)}+({center_expr(x1)}-{center_expr(x0)})*(t-{t0:.3f})/{span:.3f})"
+        expr = f"if(lt(t,{t1:.3f}),{seg},{expr})"
+    # Ilk key frame'den onceki t degerleri icin: ilk bilinen konumda sabit kal.
+    expr = f"if(lt(t,{keyframes[0][0]:.3f}),{center_expr(keyframes[0][1])},{expr})"
+
+    return f"clip({expr}-out_w/2,0,in_w-out_w)"
+
+
 def make_vertical_clip(
     input_path: str,
     start: float,
@@ -553,9 +724,17 @@ def make_vertical_clip(
     aspect: str = DEFAULT_ASPECT,
     animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = KARAOKE_HIGHLIGHT_HEX,
+    smart_crop: bool = True,
 ) -> Path:
     """Videodan bir klip keser (dolgu kelime/uzun sessizlik varsa temizler),
-    secilen en-boy oranina kirpar ve altyazi ekler."""
+    secilen en-boy oranina kirpar ve altyazi ekler.
+
+    smart_crop=True ise, kirpma penceresinin yatay konumu OpenCV yuz
+    tespitiyle konusan kisiyi takip eder (yumusatilmis, yavas bir "pan" -
+    bkz. detect_smart_crop_keyframes). Yuz guvenilir sekilde bulunamazsa ya da
+    tespit/ifade uretimi herhangi bir sekilde hata verirse SESSIZCE eski sabit
+    merkez-kirpma davranisina (crop=ih*ratio:ih, varsayilan x=(in_w-out_w)/2)
+    geri doner - akilli kadraj hicbir zaman klip uretimini bozmamali."""
     out_dir.mkdir(parents=True, exist_ok=True)
     ass_path = out_dir / f"{name}.ass"
     final_path = out_dir / f"{name}.mp4"
@@ -571,11 +750,40 @@ def make_vertical_clip(
     )
 
     aspect_preset = ASPECT_PRESETS.get(aspect, ASPECT_PRESETS[DEFAULT_ASPECT])
-    vf = (
-        f"crop=ih*{aspect_preset['ratio_w']}/{aspect_preset['ratio_h']}:ih,"
-        f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},"
-        f"subtitles=filename={ass_path.name}"
-    )
+    crop_dims = f"ih*{aspect_preset['ratio_w']}/{aspect_preset['ratio_h']}:ih"
+
+    x_expr = None
+    if smart_crop:
+        try:
+            keyframes = detect_smart_crop_keyframes(
+                input_path, start, end, aspect_preset["ratio_w"] / aspect_preset["ratio_h"],
+            )
+            if keyframes:
+                remapped_keyframes = _remap_smart_crop_keyframes(keyframes, start, keep_intervals)
+                if len(remapped_keyframes) >= 2:
+                    x_expr = _build_smart_crop_x_expr(remapped_keyframes)
+        except Exception:
+            # Yuz tespiti/ifade uretimi herhangi bir nedenle patlarsa (bozuk kare,
+            # opencv hatasi vb.) sessizce sabit merkez-kirpmaya don - klip
+            # uretiminin basarili olmasi akilli kadrajdan daha onemli.
+            x_expr = None
+
+    if x_expr:
+        # NOT: ffmpeg -vf icinde virgul, filtre zincirindeki filtreleri ayirmak
+        # icin kullanilir - x ifadesinin (if/clip) kendi virgulleri bu yuzden
+        # kacis (escape) edilmeli, yoksa ffmpeg filtre grafigini yanlis boler.
+        escaped_x_expr = x_expr.replace(",", "\\,")
+        vf = (
+            f"crop={crop_dims}:x={escaped_x_expr}:y=0,"
+            f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},"
+            f"subtitles=filename={ass_path.name}"
+        )
+    else:
+        vf = (
+            f"crop={crop_dims},"
+            f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},"
+            f"subtitles=filename={ass_path.name}"
+        )
     result = subprocess.run([
         "ffmpeg", "-y", "-i", raw_path.name, "-vf", vf,
         "-c:v", "libx264", "-c:a", "copy", "-preset", "fast",
@@ -586,18 +794,6 @@ def make_vertical_clip(
 
     raw_path.unlink(missing_ok=True)
     return final_path
-
-
-_FONT_CANDIDATES = [
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-    "/Library/Fonts/Arial Bold.ttf",
-    # Linux/Railway konteynerinde macOS fontlari bulunmuyor - Dockerfile'da
-    # kurulan fonts-liberation/fonts-dejavu-core paketlerinden gelen yollar.
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-]
-
 
 def make_cover(video_path: Path, title: str, out_path: Path, capture_time: float = 1.0):
     """Klipten bir kare alip uzerine baslik metni bindirilmis bir kapak (kapak.jpg) uretir."""

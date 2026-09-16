@@ -61,6 +61,7 @@ def init_db():
                 clips_json TEXT,
                 style TEXT,
                 remove_fillers INTEGER DEFAULT 1,
+                smart_crop INTEGER DEFAULT 1,
                 words_json TEXT,
                 language TEXT,
                 subtitle_color TEXT,
@@ -131,6 +132,7 @@ def init_db():
             "ALTER TABLE jobs ADD COLUMN org_id TEXT",
             "ALTER TABLE jobs ADD COLUMN subtitle_animation TEXT",
             "ALTER TABLE jobs ADD COLUMN highlight_color TEXT",
+            "ALTER TABLE jobs ADD COLUMN smart_crop INTEGER DEFAULT 1",
         ):
             try:
                 conn.execute(stmt)
