@@ -1157,7 +1157,7 @@ export default function AppPage() {
       <header className="fixed top-0 left-0 w-full z-50 pt-6 px-4">
         <nav className="max-w-5xl mx-auto flex items-center justify-between gap-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Logo className="h-5" />
+            <Logo className="h-9" />
           </Link>
           <div className="flex items-center gap-4 text-sm min-w-0">
             {me && (

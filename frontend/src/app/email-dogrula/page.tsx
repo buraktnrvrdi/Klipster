@@ -71,7 +71,7 @@ function EmailDogrulaContent() {
 
       <div className="relative z-10 w-full max-w-sm text-center">
         <Link href="/" className="flex items-center gap-2 w-fit mx-auto">
-          <Logo className="h-5" />
+          <Logo className="h-9" />
         </Link>
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">

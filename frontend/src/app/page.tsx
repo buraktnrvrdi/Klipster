@@ -133,7 +133,7 @@ export default function LandingPage() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-2"
           >
-            <Logo className="h-5" />
+            <Logo className="h-9" />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -457,7 +457,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-5 gap-12 mb-20 relative z-10">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <Logo className="h-8" />
+              <Logo className="h-12" />
             </div>
             <p className="text-zinc-500 max-w-xs leading-relaxed">
               İçerik üreticiler için sıfırdan tasarlanan yapay zeka klip stüdyosu.
