@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import shutil
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -822,6 +823,15 @@ def _generate_english_subtitles(
         return None
 
 
+# Ayni anda islenen video (transcribe+ffmpeg, CPU-yogun) sayisini sinirlar -
+# SQLite yazma kilitlenmelerini ve tek worker'da kaynak (CPU/bellek) tukenmesini
+# onlemek icin. Sinira ulasildiginda yeni isler "queued" durumunda bekler,
+# sira acildikca islenmeye baslar. Gercek bir mesaj kuyrugunun (Redis/Celery)
+# yerini tutmaz ama tek-process deploy icin orantili bir onlem.
+MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", "2"))
+_pipeline_semaphore = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
+
+
 def run_pipeline(
     job_id: str,
     video_path: str,
@@ -836,6 +846,28 @@ def run_pipeline(
     aspect: str = DEFAULT_ASPECT,
     subtitle_animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = DEFAULT_HIGHLIGHT_COLOR,
+):
+    with _pipeline_semaphore:
+        _run_pipeline_locked(
+            job_id, video_path, style, remove_fillers, smart_crop, max_clips, min_duration, max_duration,
+            subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
+        )
+
+
+def _run_pipeline_locked(
+    job_id: str,
+    video_path: str,
+    style: str,
+    remove_fillers: bool,
+    smart_crop: bool,
+    max_clips: float,
+    min_duration: float,
+    max_duration: float,
+    subtitle_color: str,
+    subtitle_position: str,
+    aspect: str,
+    subtitle_animation: str,
+    highlight_color: str,
 ):
     try:
         _set_job(job_id, status="transcribing")
