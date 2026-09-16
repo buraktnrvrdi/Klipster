@@ -5,6 +5,8 @@ __pycache__/
 *.pyc
 backend/storage/
 .env
+.env.*
+!.env.example
 .env.local
 .DS_Store
 **/.DS_Store
