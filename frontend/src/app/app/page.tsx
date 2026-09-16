@@ -1702,12 +1702,26 @@ export default function AppPage() {
                     job.status === "done" ? "hover:bg-white/[0.05] cursor-pointer" : "cursor-default"
                   } ${job.job_id === currentJobId ? "bg-red-500/[0.06]" : ""}`}
                 >
-                  <div className="min-w-0">
-                    <p className="font-medium text-zinc-200 truncate max-w-[220px]">{job.filename}</p>
-                    <p className="text-xs text-zinc-500">
-                      {new Date(job.created_at.replace(" ", "T") + "Z").toLocaleString("tr-TR")}
-                      {me?.org && job.uploaded_by ? ` · ${job.uploaded_by}` : ""}
-                    </p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="shrink-0 w-10 h-[60px] rounded-md overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center">
+                      {job.clips?.[0]?.cover_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- kucuk, sabit boyutlu bir thumbnail; next/image optimizasyonu burada gereksiz
+                        <img
+                          src={`${API_URL}${job.clips[0].cover_url}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Scissors className="h-4 w-4 text-zinc-600" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-200 truncate max-w-[220px]">{job.filename}</p>
+                      <p className="text-xs text-zinc-500">
+                        {new Date(job.created_at.replace(" ", "T") + "Z").toLocaleString("tr-TR")}
+                        {me?.org && job.uploaded_by ? ` · ${job.uploaded_by}` : ""}
+                      </p>
+                    </div>
                   </div>
                   <span
                     title={job.status === "error" ? job.error ?? undefined : undefined}
