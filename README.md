@@ -1,5 +1,7 @@
 # Klipster
 
+![CI](https://github.com/burki59/Klipster/actions/workflows/ci.yml/badge.svg)
+
 **Uzun videoyu yükle, yapay zeka en çarpıcı anları bulup senin yerine altyazılı, dikey (9:16) sosyal medya klipleri üretsin.**
 
 Podcast, röportaj, canlı yayın veya ekran kaydı gibi uzun içerikleri; TikTok, Instagram Reels ve YouTube Shorts için hazır, altyazılı ve düzenlenebilir kısa kliplere dönüştüren uçtan uca bir SaaS ürünü. Full-stack olarak tek başıma geliştirdim: kimlik doğrulama ve ekip/organizasyon yönetiminden, ses tanıma ve LLM tabanlı içerik analizine, ffmpeg video işleme hattına ve CapCut tarzı bir web editörüne kadar tüm katmanlar bu repoda.
