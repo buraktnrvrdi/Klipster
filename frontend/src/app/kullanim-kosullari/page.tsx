@@ -20,7 +20,7 @@ export default function KullanimKosullariPage() {
   return (
     <main className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#160b02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#160202] to-black" />
         <ParallaxStars speed={0.4} />
         <div className="absolute inset-0 noir-grid" />
       </div>
@@ -28,7 +28,7 @@ export default function KullanimKosullariPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-9" />
+            <Logo className="h-14" />
           </Link>
           <Link
             href="/"
@@ -134,7 +134,7 @@ export default function KullanimKosullariPage() {
           <p>
             Bu koşulları zaman zaman güncelleyebiliriz, önemli değişikliklerde sayfanın en üstündeki
             tarihi güncelleriz. Sorularınız için{" "}
-            <Link href="/iletisim" className="text-orange-400 hover:underline">
+            <Link href="/iletisim" className="text-red-400 hover:underline">
               iletişim sayfamızdan
             </Link>{" "}
             bize ulaşabilirsin.

@@ -9,7 +9,7 @@ const CLIPS = [
     tag: "@icerik_ureticisi",
     time: "00:24",
     from: "#141414",
-    to: "#3a2413",
+    to: "#3a1313",
   },
   {
     caption: "kimse bunu beklemiyordu ama",
@@ -17,7 +17,7 @@ const CLIPS = [
     tag: "@podcast_tr",
     time: "00:41",
     from: "#12141c",
-    to: "#241611",
+    to: "#241111",
   },
   {
     caption: "işte bu yüzden fark yaratıyor",
@@ -25,7 +25,7 @@ const CLIPS = [
     tag: "@roportaj_kanali",
     time: "00:17",
     from: "#151313",
-    to: "#22120d",
+    to: "#220d0d",
   },
 ];
 
@@ -48,7 +48,7 @@ export default function PhoneShowcase() {
         className="absolute inset-0 -z-10 rounded-full blur-[90px] opacity-50"
         style={{
           background:
-            "radial-gradient(circle, rgba(249,115,22,0.35), transparent 70%)",
+            "radial-gradient(circle, rgba(239,68,68,0.35), transparent 70%)",
         }}
       />
 
@@ -115,7 +115,7 @@ export default function PhoneShowcase() {
               <div className="bg-black/45 backdrop-blur-md rounded-lg px-4 py-2.5 border border-white/10">
                 <p className="text-white text-[15px] font-medium text-center leading-snug tracking-tight">
                   {clip.caption.split(clip.highlight)[0]}
-                  <span className="text-orange-400">{clip.highlight}</span>
+                  <span className="text-red-400">{clip.highlight}</span>
                   {clip.caption.split(clip.highlight)[1]}
                 </p>
               </div>

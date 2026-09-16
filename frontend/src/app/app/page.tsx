@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2 } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2, Wand2 } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 
@@ -24,6 +24,7 @@ type Clip = {
   subtitle_position?: string;
   aspect?: string;
   subtitle_animation?: string;
+  highlight_color?: string;
   social_caption?: string;
   social_hashtags?: string[];
   translations?: { language: string; label: string; url: string }[];
@@ -104,10 +105,14 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "yesil", label: "Yeşil", hex: "#22C55E" },
     { id: "mavi", label: "Mavi", hex: "#3B82F6" },
     { id: "pembe", label: "Pembe", hex: "#EC4899" },
+    { id: "kirmizi", label: "Kırmızı", hex: "#EF4444" },
   ],
   animations: [
     { id: "statik", label: "Statik (klasik)" },
     { id: "karaoke", label: "Kelime vurgulu (karaoke)" },
+    { id: "pop", label: "Zıplayan (pop)" },
+    { id: "daktilo", label: "Daktilo (harf harf)" },
+    { id: "kayan", label: "Kayarak giren" },
   ],
   credits: { base: 4, per_clip: 2 },
 };
@@ -130,7 +135,7 @@ function formatTime(sec: number): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 75) return "text-orange-400 bg-orange-500/10 border-orange-500/20";
+  if (score >= 75) return "text-red-400 bg-red-500/10 border-red-500/20";
   if (score >= 50) return "text-amber-400 bg-amber-500/10 border-amber-500/20";
   return "text-zinc-400 bg-white/5 border-white/10";
 }
@@ -148,6 +153,8 @@ function RenderOptionsFields({
   onAspectChange,
   animation,
   onAnimationChange,
+  highlightColor,
+  onHighlightColorChange,
 }: {
   styles: Record<string, string>;
   renderOptions: RenderOptions;
@@ -161,6 +168,8 @@ function RenderOptionsFields({
   onAspectChange: (v: string) => void;
   animation: string;
   onAnimationChange: (v: string) => void;
+  highlightColor: string;
+  onHighlightColorChange: (v: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -170,7 +179,7 @@ function RenderOptionsFields({
           <select
             value={style}
             onChange={(e) => onStyleChange(e.target.value)}
-            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
           >
             {Object.entries(styles).map(([key, label]) => (
               <option key={key} value={key} className="bg-black">
@@ -184,7 +193,7 @@ function RenderOptionsFields({
           <select
             value={aspect}
             onChange={(e) => onAspectChange(e.target.value)}
-            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+            className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
           >
             {renderOptions.aspects.map((a) => (
               <option key={a.id} value={a.id} className="bg-black">
@@ -199,7 +208,7 @@ function RenderOptionsFields({
         <select
           value={position}
           onChange={(e) => onPositionChange(e.target.value)}
-          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
         >
           {renderOptions.positions.map((pos) => (
             <option key={pos.id} value={pos.id} className="bg-black">
@@ -213,7 +222,7 @@ function RenderOptionsFields({
         <select
           value={animation}
           onChange={(e) => onAnimationChange(e.target.value)}
-          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+          className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
         >
           {renderOptions.animations.map((a) => (
             <option key={a.id} value={a.id} className="bg-black">
@@ -235,13 +244,35 @@ function RenderOptionsFields({
               style={{ backgroundColor: c.hex }}
               className={`h-5 w-5 rounded-full border transition ${
                 color.toLowerCase() === c.hex.toLowerCase()
-                  ? "ring-2 ring-offset-1 ring-offset-black ring-orange-500 border-transparent"
+                  ? "ring-2 ring-offset-1 ring-offset-black ring-red-500 border-transparent"
                   : "border-white/20"
               }`}
             />
           ))}
         </div>
       </div>
+      {(animation === "karaoke" || animation === "pop") && (
+        <div>
+          <span className="block text-[11px] font-medium text-zinc-500 mb-1.5">Vurgu rengi</span>
+          <div className="flex items-center gap-2">
+            {renderOptions.colors.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onHighlightColorChange(c.hex)}
+                title={c.label}
+                aria-label={c.label}
+                style={{ backgroundColor: c.hex }}
+                className={`h-5 w-5 rounded-full border transition ${
+                  highlightColor.toLowerCase() === c.hex.toLowerCase()
+                    ? "ring-2 ring-offset-1 ring-offset-black ring-red-500 border-transparent"
+                    : "border-white/20"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -332,7 +363,7 @@ function TrimScrubber({
         className="relative h-9 rounded-lg bg-white/10 select-none touch-none"
       >
         <div
-          className="absolute inset-y-0 bg-orange-500/25 border-y-2 border-orange-500/70"
+          className="absolute inset-y-0 bg-red-500/25 border-y-2 border-red-500/70"
           style={{ left: `${startPct}%`, right: `${100 - endPct}%` }}
         />
         <div
@@ -340,7 +371,7 @@ function TrimScrubber({
             e.preventDefault();
             setDragging("start");
           }}
-          className="absolute inset-y-0 -ml-2 w-4 rounded-md bg-orange-500 cursor-ew-resize touch-none shadow-lg"
+          className="absolute inset-y-0 -ml-2 w-4 rounded-md bg-red-500 cursor-ew-resize touch-none shadow-lg"
           style={{ left: `${startPct}%` }}
         />
         <div
@@ -348,7 +379,7 @@ function TrimScrubber({
             e.preventDefault();
             setDragging("end");
           }}
-          className="absolute inset-y-0 -ml-2 w-4 rounded-md bg-orange-500 cursor-ew-resize touch-none shadow-lg"
+          className="absolute inset-y-0 -ml-2 w-4 rounded-md bg-red-500 cursor-ew-resize touch-none shadow-lg"
           style={{ left: `${endPct}%` }}
         />
       </div>
@@ -376,6 +407,7 @@ function ClipCard({
   defaultPosition,
   defaultAspect,
   defaultAnimation,
+  defaultHighlightColor,
   subtitleLanguages,
 }: {
   clip: Clip;
@@ -392,6 +424,7 @@ function ClipCard({
   defaultPosition: string;
   defaultAspect: string;
   defaultAnimation: string;
+  defaultHighlightColor: string;
   subtitleLanguages: { id: string; label: string }[];
 }) {
   const [editing, setEditing] = useState(false);
@@ -402,6 +435,7 @@ function ClipCard({
   const [clipPosition, setClipPosition] = useState(clip.subtitle_position ?? defaultPosition);
   const [clipAspect, setClipAspect] = useState(clip.aspect ?? defaultAspect);
   const [clipAnimation, setClipAnimation] = useState(clip.subtitle_animation ?? defaultAnimation);
+  const [clipHighlightColor, setClipHighlightColor] = useState(clip.highlight_color ?? defaultHighlightColor);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -428,6 +462,7 @@ function ClipCard({
           subtitle_position: clipPosition,
           aspect: clipAspect,
           subtitle_animation: clipAnimation,
+          highlight_color: clipHighlightColor,
         }),
       });
       const data = await res.json();
@@ -545,13 +580,22 @@ function ClipCard({
         <p className="text-xs text-zinc-500 mt-1">{clip.reason}</p>
 
         <div className="mt-3 flex items-center gap-3 text-xs">
+          {canEdit && jobId && (
+            <Link
+              href={`/app/edit/${jobId}/${index}`}
+              className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold transition-colors"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              Profesyonel Düzenle
+            </Link>
+          )}
           {canEdit && (
             <button
               onClick={() => setEditing((v) => !v)}
               className="flex items-center gap-1 text-zinc-400 hover:text-white font-medium transition-colors"
             >
               {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-              {editing ? "Vazgeç" : "Düzenle"}
+              {editing ? "Vazgeç" : "Hızlı düzenle"}
             </button>
           )}
           {clip.manual && jobId && (
@@ -582,7 +626,7 @@ function ClipCard({
               <div className="rounded-lg bg-black/30 border border-white/10 px-3 py-2.5">
                 <p className="text-xs text-zinc-300 leading-relaxed">{clip.social_caption}</p>
                 {clip.social_hashtags && clip.social_hashtags.length > 0 && (
-                  <p className="mt-1.5 text-[11px] text-orange-400">
+                  <p className="mt-1.5 text-[11px] text-red-400">
                     {clip.social_hashtags.map((h) => `#${h}`).join(" ")}
                   </p>
                 )}
@@ -625,7 +669,7 @@ function ClipCard({
               <select
                 value={translateLang}
                 onChange={(e) => setTranslateLang(e.target.value)}
-                className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-red-500/60 transition-colors"
               >
                 {subtitleLanguages.map((l) => (
                   <option key={l.id} value={l.id} className="bg-black">
@@ -636,7 +680,7 @@ function ClipCard({
               <button
                 onClick={handleTranslate}
                 disabled={translateLoading}
-                className="text-[11px] text-orange-400 hover:text-orange-300 font-medium transition-colors disabled:opacity-40"
+                className="text-[11px] text-red-400 hover:text-red-300 font-medium transition-colors disabled:opacity-40"
               >
                 {translateLoading ? "Çevriliyor..." : "+ Altyazı ekle"}
               </button>
@@ -681,6 +725,8 @@ function ClipCard({
                 onAspectChange={setClipAspect}
                 animation={clipAnimation}
                 onAnimationChange={setClipAnimation}
+                highlightColor={clipHighlightColor}
+                onHighlightColorChange={setClipHighlightColor}
               />
             </div>
             {editError && (
@@ -691,7 +737,7 @@ function ClipCard({
             <button
               onClick={handleRetrim}
               disabled={saving || end - start < 3}
-              className="mt-1 bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-orange-600 transition disabled:opacity-40"
+              className="mt-1 bg-red-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-red-600 transition disabled:opacity-40"
             >
               {saving ? "Yeniden oluşturuluyor..." : "Yeniden oluştur"}
             </button>
@@ -714,6 +760,7 @@ function AddClipCard({
   defaultPosition,
   defaultAspect,
   defaultAnimation,
+  defaultHighlightColor,
 }: {
   jobId: string;
   token: string;
@@ -726,6 +773,7 @@ function AddClipCard({
   defaultPosition: string;
   defaultAspect: string;
   defaultAnimation: string;
+  defaultHighlightColor: string;
 }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(0);
@@ -737,6 +785,7 @@ function AddClipCard({
   const [clipPosition, setClipPosition] = useState(defaultPosition);
   const [clipAspect, setClipAspect] = useState(defaultAspect);
   const [clipAnimation, setClipAnimation] = useState(defaultAnimation);
+  const [clipHighlightColor, setClipHighlightColor] = useState(defaultHighlightColor);
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -756,6 +805,7 @@ function AddClipCard({
           subtitle_position: clipPosition,
           aspect: clipAspect,
           subtitle_animation: clipAnimation,
+          highlight_color: clipHighlightColor,
         }),
       });
       const data = await res.json();
@@ -777,7 +827,7 @@ function AddClipCard({
     return (
       <button
         onClick={() => setOpen(true)}
-        className={`flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.02] hover:border-orange-500/40 hover:bg-white/[0.04] transition-colors text-zinc-400 hover:text-white ${aspectClass}`}
+        className={`flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.02] hover:border-red-500/40 hover:bg-white/[0.04] transition-colors text-zinc-400 hover:text-white ${aspectClass}`}
       >
         <Plus className="h-5 w-5" />
         <span className="text-sm font-medium">Yeni klip ekle</span>
@@ -789,10 +839,10 @@ function AddClipCard({
   }
 
   return (
-    <div className="bg-white/[0.03] border border-orange-500/30 rounded-xl overflow-hidden text-left backdrop-blur-sm p-3 flex flex-col gap-3">
+    <div className="bg-white/[0.03] border border-red-500/30 rounded-xl overflow-hidden text-left backdrop-blur-sm p-3 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-white flex items-center gap-1.5">
-          <Scissors className="h-3.5 w-3.5 text-orange-400" />
+          <Scissors className="h-3.5 w-3.5 text-red-400" />
           Yeni klip
         </p>
         <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-white">
@@ -823,7 +873,7 @@ function AddClipCard({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Klip başlığı (opsiyonel)"
-        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
       />
       <RenderOptionsFields
         styles={styles}
@@ -838,6 +888,8 @@ function AddClipCard({
         onAspectChange={setClipAspect}
         animation={clipAnimation}
         onAnimationChange={setClipAnimation}
+        highlightColor={clipHighlightColor}
+        onHighlightColorChange={setClipHighlightColor}
       />
       {addError && (
         <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
@@ -847,7 +899,7 @@ function AddClipCard({
       <button
         onClick={handleAdd}
         disabled={saving || end - start < 3}
-        className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-orange-600 transition disabled:opacity-40"
+        className="bg-red-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-red-600 transition disabled:opacity-40"
       >
         {saving ? "Oluşturuluyor..." : "Klip oluştur"}
       </button>
@@ -878,11 +930,13 @@ export default function AppPage() {
   const [subtitlePosition, setSubtitlePosition] = useState("alt");
   const [aspect, setAspect] = useState("9:16");
   const [subtitleAnimation, setSubtitleAnimation] = useState("statik");
+  const [subtitleHighlightColor, setSubtitleHighlightColor] = useState("#FFEB3B");
   const [currentAspect, setCurrentAspect] = useState("9:16");
   const [currentStyle, setCurrentStyle] = useState("klasik");
   const [currentSubtitleColor, setCurrentSubtitleColor] = useState("#FFFFFF");
   const [currentSubtitlePosition, setCurrentSubtitlePosition] = useState("alt");
   const [currentSubtitleAnimation, setCurrentSubtitleAnimation] = useState("statik");
+  const [currentSubtitleHighlightColor, setCurrentSubtitleHighlightColor] = useState("#FFEB3B");
   const [subtitleLanguages, setSubtitleLanguages] = useState<{ id: string; label: string }[]>([
     { id: "en", label: "İngilizce" },
   ]);
@@ -953,6 +1007,18 @@ export default function AppPage() {
       })
       .catch(() => {});
   }, [token, router]);
+
+  // Profesyonel düzenleyiciden "Kaydet" sonrası geri dönüldüğünde
+  // (/app?job=<id>), o işi otomatik olarak açıp güncel klipleri gösterir -
+  // aksi halde sayfa yeniden mount olduğu için düzenlenen klip görünmez kalırdı.
+  useEffect(() => {
+    if (!token) return;
+    const jobParam = new URLSearchParams(window.location.search).get("job");
+    if (jobParam) {
+      handleOpenHistoryJob(jobParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     return () => {
@@ -1041,6 +1107,7 @@ export default function AppPage() {
     setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
     setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
     setCurrentSubtitleAnimation(jobData.subtitle_animation || "statik");
+    setCurrentSubtitleHighlightColor(jobData.highlight_color || "#FFEB3B");
     setStatus("done");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1061,6 +1128,7 @@ export default function AppPage() {
         setCurrentSubtitleColor(jobData.subtitle_color || "#FFFFFF");
         setCurrentSubtitlePosition(jobData.subtitle_position || "alt");
         setCurrentSubtitleAnimation(jobData.subtitle_animation || "statik");
+    setCurrentSubtitleHighlightColor(jobData.highlight_color || "#FFEB3B");
         clearInterval(poll);
         fetch(`${API_URL}/api/auth/me`, { headers: authHeaders(token) }).then((r) => r.json()).then(setMe);
         fetch(`${API_URL}/api/jobs`, { headers: authHeaders(token) }).then((r) => r.json()).then(setHistory);
@@ -1096,6 +1164,7 @@ export default function AppPage() {
         subtitle_position: subtitlePosition,
         aspect,
         subtitle_animation: subtitleAnimation,
+        highlight_color: subtitleHighlightColor,
       };
       if (canCustomize) {
         body.clip_count = clipCount;
@@ -1116,6 +1185,7 @@ export default function AppPage() {
       formData.append("subtitle_position", subtitlePosition);
       formData.append("aspect", aspect);
       formData.append("subtitle_animation", subtitleAnimation);
+      formData.append("highlight_color", subtitleHighlightColor);
       if (canCustomize) {
         formData.append("clip_count", String(clipCount));
         formData.append("min_duration", String(preset.min));
@@ -1148,16 +1218,18 @@ export default function AppPage() {
   return (
     <main className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0d02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0202] to-black" />
         <ParallaxStars speed={0.6} />
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-orange-600/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-red-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <header className="fixed top-0 left-0 w-full z-50 pt-6 px-4">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between gap-4 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl">
+        <div className="max-w-5xl mx-auto relative">
+          <div className="absolute -inset-2 rounded-full bg-red-600/20 blur-xl animate-glow pointer-events-none" />
+        <nav className="relative flex items-center justify-between gap-4 bg-black/60 backdrop-blur-xl border border-red-500/25 rounded-full px-6 py-3 shadow-[0_0_25px_rgba(239,68,68,0.15)] transition-all duration-500 hover:border-red-500/45 hover:shadow-[0_0_35px_rgba(239,68,68,0.25)]">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Logo className="h-9" />
+            <Logo className="h-14" />
           </Link>
           <div className="flex items-center gap-4 text-sm min-w-0">
             {me && (
@@ -1174,12 +1246,13 @@ export default function AppPage() {
             </button>
           </div>
         </nav>
+        </div>
       </header>
 
       <div className="relative z-10 max-w-2xl mx-auto px-6 pt-32 pb-20 flex flex-col items-center text-center gap-6">
         {me && !me.user.email_verified && (
-          <div className="w-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-500/20 bg-orange-500/[0.06] px-4 py-3 text-left">
-            <p className="text-sm text-orange-200">E-posta adresini henüz doğrulamadın.</p>
+          <div className="w-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-left">
+            <p className="text-sm text-red-200">E-posta adresini henüz doğrulamadın.</p>
             <button
               onClick={async () => {
                 if (!token) return;
@@ -1196,7 +1269,7 @@ export default function AppPage() {
                 }
               }}
               disabled={resendingVerification}
-              className="text-xs font-semibold text-orange-400 hover:text-orange-300 transition-colors disabled:opacity-40"
+              className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
             >
               {verificationResent
                 ? "Gönderildi ✓"
@@ -1214,7 +1287,7 @@ export default function AppPage() {
         </p>
 
         {limitReached && (
-          <p className="text-sm bg-orange-500/10 border border-orange-500/20 text-orange-300 rounded-lg px-4 py-3 w-full text-left">
+          <p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 rounded-lg px-4 py-3 w-full text-left">
             Bu ayki kredin doldu ({me?.usage.used}/{me?.usage.limit} kredi). Daha fazla video için bir üst plana geçmen gerekiyor.
           </p>
         )}
@@ -1226,7 +1299,7 @@ export default function AppPage() {
                 type="button"
                 onClick={() => setUploadMode("dosya")}
                 className={`flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  uploadMode === "dosya" ? "bg-orange-500 text-black" : "text-zinc-400 hover:text-white"
+                  uploadMode === "dosya" ? "bg-red-500 text-black" : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <UploadCloud className="h-3.5 w-3.5" />
@@ -1236,7 +1309,7 @@ export default function AppPage() {
                 type="button"
                 onClick={() => setUploadMode("link")}
                 className={`flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  uploadMode === "link" ? "bg-orange-500 text-black" : "text-zinc-400 hover:text-white"
+                  uploadMode === "link" ? "bg-red-500 text-black" : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <Link2 className="h-3.5 w-3.5" />
@@ -1264,7 +1337,7 @@ export default function AppPage() {
             </div>
           ) : uploadMode === "link" ? (
             <div className="w-full flex flex-col items-center gap-2">
-              <label className="w-full flex items-center gap-3 border border-dashed border-white/15 rounded-xl px-4 py-4 focus-within:border-orange-500/40 transition-colors">
+              <label className="w-full flex items-center gap-3 border border-dashed border-white/15 rounded-xl px-4 py-4 focus-within:border-red-500/40 transition-colors">
                 <Link2 className="h-5 w-5 text-zinc-500 shrink-0" />
                 <input
                   type="url"
@@ -1282,7 +1355,7 @@ export default function AppPage() {
             </div>
           ) : (
             <>
-              <label className="w-full flex flex-col items-center gap-3 border border-dashed border-white/15 rounded-xl px-6 py-8 cursor-pointer hover:border-orange-500/40 hover:bg-white/[0.02] transition-colors">
+              <label className="w-full flex flex-col items-center gap-3 border border-dashed border-white/15 rounded-xl px-6 py-8 cursor-pointer hover:border-red-500/40 hover:bg-white/[0.02] transition-colors">
                 <UploadCloud className="h-6 w-6 text-zinc-500" />
                 <span className="text-sm text-zinc-300 font-medium">
                   {file ? file.name : "Video seçmek için tıkla"}
@@ -1316,7 +1389,7 @@ export default function AppPage() {
               <select
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
               >
                 {Object.entries(styles).map(([key, label]) => (
                   <option key={key} value={key} className="bg-black">
@@ -1331,7 +1404,7 @@ export default function AppPage() {
                 type="checkbox"
                 checked={removeFillers}
                 onChange={(e) => setRemoveFillers(e.target.checked)}
-                className="h-4 w-4 accent-orange-500"
+                className="h-4 w-4 accent-red-500"
               />
               Konuşma akışını bozan dolgu kelimeleri ve gereksiz
               sessizlikleri otomatik olarak ayıkla
@@ -1344,7 +1417,7 @@ export default function AppPage() {
               <select
                 value={aspect}
                 onChange={(e) => setAspect(e.target.value)}
-                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
               >
                 {renderOptions.aspects.map((a) => (
                   <option key={a.id} value={a.id} className="bg-black">
@@ -1359,7 +1432,7 @@ export default function AppPage() {
               <select
                 value={subtitlePosition}
                 onChange={(e) => setSubtitlePosition(e.target.value)}
-                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
               >
                 {renderOptions.positions.map((p) => (
                   <option key={p.id} value={p.id} className="bg-black">
@@ -1376,7 +1449,7 @@ export default function AppPage() {
               <select
                 value={subtitleAnimation}
                 onChange={(e) => setSubtitleAnimation(e.target.value)}
-                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
               >
                 {renderOptions.animations.map((a) => (
                   <option key={a.id} value={a.id} className="bg-black">
@@ -1400,7 +1473,7 @@ export default function AppPage() {
                   style={{ backgroundColor: c.hex }}
                   className={`h-7 w-7 rounded-full border transition ${
                     subtitleColor.toLowerCase() === c.hex.toLowerCase()
-                      ? "ring-2 ring-offset-2 ring-offset-black ring-orange-500 border-transparent"
+                      ? "ring-2 ring-offset-2 ring-offset-black ring-red-500 border-transparent"
                       : "border-white/20"
                   }`}
                 />
@@ -1408,11 +1481,34 @@ export default function AppPage() {
             </div>
           </div>
 
+          {(subtitleAnimation === "karaoke" || subtitleAnimation === "pop") && (
+            <div className="w-full text-left">
+              <span className="block text-xs font-medium text-zinc-400 mb-2">Vurgu rengi</span>
+              <div className="flex items-center gap-2.5">
+                {renderOptions.colors.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSubtitleHighlightColor(c.hex)}
+                    title={c.label}
+                    aria-label={c.label}
+                    style={{ backgroundColor: c.hex }}
+                    className={`h-7 w-7 rounded-full border transition ${
+                      subtitleHighlightColor.toLowerCase() === c.hex.toLowerCase()
+                        ? "ring-2 ring-offset-2 ring-offset-black ring-red-500 border-transparent"
+                        : "border-white/20"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="w-full text-left">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-medium text-zinc-400">Klip sayısı ve süresi</span>
               {!canCustomize && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
                   <Lock className="h-2.5 w-2.5" />
                   Yaratıcı planında
                 </span>
@@ -1425,7 +1521,7 @@ export default function AppPage() {
                   value={clipCount}
                   onChange={(e) => setClipCount(Number(e.target.value))}
                   disabled={!canCustomize}
-                  className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {[3, 4, 5, 6, 7, 8].map((n) => (
                     <option key={n} value={n} className="bg-black">
@@ -1440,7 +1536,7 @@ export default function AppPage() {
                   value={durationPreset}
                   onChange={(e) => setDurationPreset(e.target.value)}
                   disabled={!canCustomize}
-                  className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="mt-1 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {Object.entries(DURATION_PRESETS).map(([key, p]) => (
                     <option key={key} value={key} className="bg-black">
@@ -1453,7 +1549,7 @@ export default function AppPage() {
             {!canCustomize && (
               <p className="mt-1.5 text-[11px] text-zinc-500">
                 Ücretsiz planda otomatik olarak 5 klip, 20-75 sn aralığında üretilir.{" "}
-                <Link href="/#fiyatlandirma" className="text-orange-400 hover:underline">
+                <Link href="/#fiyatlandirma" className="text-red-400 hover:underline">
                   Yaratıcı planını incele
                 </Link>
               </p>
@@ -1468,7 +1564,7 @@ export default function AppPage() {
           <button
             onClick={handleUpload}
             disabled={(uploadMode === "dosya" ? !file : !videoUrl.trim()) || isBusy || limitReached}
-            className="bg-orange-500 text-black px-8 py-2.5 rounded-full font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-30 disabled:hover:bg-orange-500"
+            className="bg-red-500 text-black px-8 py-2.5 rounded-full font-semibold text-sm hover:bg-red-600 transition disabled:opacity-30 disabled:hover:bg-red-500"
           >
             Klipleri Oluştur
           </button>
@@ -1477,7 +1573,7 @@ export default function AppPage() {
         {status !== "idle" && (
           <div className="flex items-center gap-2 text-zinc-400 text-sm">
             {isBusy && (
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/20 border-t-orange-500 animate-spin" />
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/20 border-t-red-500 animate-spin" />
             )}
             <span>{STATUS_LABELS[status]}</span>
           </div>
@@ -1507,6 +1603,7 @@ export default function AppPage() {
                 defaultPosition={currentSubtitlePosition}
                 defaultAspect={currentAspect}
                 defaultAnimation={currentSubtitleAnimation}
+                defaultHighlightColor={currentSubtitleHighlightColor}
                 subtitleLanguages={subtitleLanguages}
               />
             ))}
@@ -1523,6 +1620,7 @@ export default function AppPage() {
                 defaultPosition={currentSubtitlePosition}
                 defaultAspect={currentAspect}
                 defaultAnimation={currentSubtitleAnimation}
+                defaultHighlightColor={currentSubtitleHighlightColor}
               />
             )}
           </div>
@@ -1541,7 +1639,7 @@ export default function AppPage() {
                   disabled={job.status !== "done"}
                   className={`flex items-center justify-between px-4 py-3 text-sm text-left w-full transition-colors ${
                     job.status === "done" ? "hover:bg-white/[0.05] cursor-pointer" : "cursor-default"
-                  } ${job.job_id === currentJobId ? "bg-orange-500/[0.06]" : ""}`}
+                  } ${job.job_id === currentJobId ? "bg-red-500/[0.06]" : ""}`}
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-zinc-200 truncate max-w-[220px]">{job.filename}</p>

@@ -91,6 +91,36 @@ body {
   animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* Altyazi animasyon onizlemeleri (ClipEditor.tsx renderSampleWords) - backend'deki
+   ASS \t()/\move() efektlerinin CSS karsiligi, kenar cubugu kart onizlemesi icin. */
+@keyframes capPopWord {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.cap-pop-word {
+  animation: capPopWord 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  color: #EF4444;
+}
+
+@keyframes capSlideChunk {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.cap-slide-chunk {
+  animation: capSlideChunk 0.25s ease-out both;
+}
+
+@keyframes capCursorBlink {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.cap-cursor {
+  display: inline-block;
+  animation: capCursorBlink 0.8s step-end infinite;
+  margin-left: 1px;
+}
+
 .font-display {
   font-family: var(--font-sora), var(--font-sans), sans-serif;
 }
@@ -175,12 +205,12 @@ body {
 .animate-text-pulse {
   background-image: linear-gradient(
     100deg,
-    #c2410c 0%,
-    #f97316 20%,
-    #fdba74 40%,
-    #f97316 60%,
-    #c2410c 80%,
-    #f97316 100%
+    #b91c1c 0%,
+    #ef4444 20%,
+    #fca5a5 40%,
+    #ef4444 60%,
+    #b91c1c 80%,
+    #ef4444 100%
   );
   background-size: 250% auto;
   -webkit-background-clip: text;
@@ -232,9 +262,9 @@ body {
     conic-gradient(
       from var(--gradient-angle),
       transparent 0%,
-      #f97316 5%,
-      #f97316 15%,
-      #f97316 30%,
+      #ef4444 5%,
+      #ef4444 15%,
+      #ef4444 30%,
       transparent 40%,
       transparent 100%
     ) border-box;
@@ -264,13 +294,11 @@ body {
   mask-image: linear-gradient(to bottom, black, transparent);
 }
 
+/* Kullanici arka plandaki kare kare filigran (grid) deseninin kaldirilmasini
+   istedi - class'i (11 sayfada kullanildigi icin tek tek kaldirmak yerine)
+   burada no-op yaptik, boylece hicbir sayfada artik grid deseni gorunmuyor. */
 .noir-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
-  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+  background-image: none;
 }
 
 .noir-text-stroke {
@@ -279,6 +307,6 @@ body {
 }
 
 .noir-selection::selection {
-  background: #f97316;
+  background: #ef4444;
   color: black;
 }

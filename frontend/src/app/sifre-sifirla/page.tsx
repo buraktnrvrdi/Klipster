@@ -65,15 +65,15 @@ function SifreSifirlaForm() {
   return (
     <main className="noir-selection relative min-h-screen bg-black text-white flex items-center justify-center px-6 overflow-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0d02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0202] to-black" />
         <ParallaxStars speed={0.6} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-600/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-red-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
         <Link href="/" className="flex items-center gap-2 w-fit">
-          <Logo className="h-9" />
+          <Logo className="h-14" />
         </Link>
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
@@ -104,7 +104,7 @@ function SifreSifirlaForm() {
               </p>
               <button
                 onClick={() => router.push("/giris")}
-                className="mt-6 bg-orange-500 hover:bg-orange-600 text-black px-5 py-2.5 rounded-full text-sm font-semibold transition"
+                className="mt-6 bg-red-500 hover:bg-red-600 text-black px-5 py-2.5 rounded-full text-sm font-semibold transition"
               >
                 Giriş yap
               </button>
@@ -123,7 +123,7 @@ function SifreSifirlaForm() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                     placeholder="En az 6 karakter"
                   />
                 </label>
@@ -134,7 +134,7 @@ function SifreSifirlaForm() {
                     required
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                     placeholder="••••••••"
                   />
                 </label>
@@ -148,7 +148,7 @@ function SifreSifirlaForm() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-2 bg-orange-500 hover:bg-orange-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
+                  className="mt-2 bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
                 >
                   {loading ? "Kaydediliyor..." : "Şifreyi değiştir"}
                 </button>

@@ -1,19 +1,22 @@
 import Image from "next/image";
 
 /**
- * Klipster marka logosu (turuncu K ikonu + "KLIPSTER" yazısı tek bir görselde).
- * Eskiden ayrı ayrı bir turuncu kare (icon) + <span>Klipster</span> olarak
- * elle çiziliyordu - artık tasarımdan gelen tek bir PNG kullanılıyor
- * (public/logo.png, arka planı şeffaf). className ile yükseklik/genişlik
- * her kullanım yerine göre ayarlanabilir (nav bar vs footer gibi).
+ * Klipster marka logosu (kırmızı K/play ikonu + "klipster" yazısı ALT ALTA,
+ * tek bir görselde - eski logo yatay/genis bir yerlesimdi, bu yeni logo dikeye
+ * yakin bir yerlesim (~1.07 en/boy orani). Arka plani seffaf (public/logo-v2.png).
+ * className ile yukseklik/genislik her kullanim yerine gore ayarlanabilir
+ * (nav bar vs footer gibi) - ama dikkat: logo dikeye yakin oldugu icin, eski
+ * genis logoya gore ayarlanmis kucuk yukseklik degerleri (ör. h-9) "klipster"
+ * yazisini okunmaz derecede kucultur; bu yuzden kullanim yerlerinde yukseklik
+ * degerleri yeni orana gore yukseltildi.
  */
-export default function Logo({ className = "h-5" }: { className?: string }) {
+export default function Logo({ className = "h-10" }: { className?: string }) {
   return (
     <Image
-      src="/logo.png"
+      src="/logo-v2.png"
       alt="Klipster"
-      width={757}
-      height={242}
+      width={673}
+      height={627}
       priority
       className={`${className} w-auto`}
     />

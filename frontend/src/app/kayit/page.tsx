@@ -58,22 +58,22 @@ function KayitForm() {
   return (
     <main className="noir-selection relative min-h-screen bg-black text-white flex items-center justify-center px-6 overflow-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0d02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0202] to-black" />
         <ParallaxStars speed={0.6} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-600/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-red-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
         <Link href="/" className="flex items-center gap-2 w-fit">
-          <Logo className="h-9" />
+          <Logo className="h-14" />
         </Link>
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
           {registered ? (
             <>
-              <div className="h-12 w-12 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-orange-400" />
+              <div className="h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <Mail className="h-5 w-5 text-red-400" />
               </div>
               <h1 className="mt-4 text-xl font-semibold font-display tracking-tight">E-postanı kontrol et</h1>
               <p className="mt-2 text-sm text-zinc-400">
@@ -95,7 +95,7 @@ function KayitForm() {
             Zaten hesabın var mı?{" "}
             <Link
               href={inviteToken ? `/giris?invite=${inviteToken}` : "/giris"}
-              className="text-orange-500 font-medium hover:underline"
+              className="text-red-500 font-medium hover:underline"
             >
               Giriş yap
             </Link>
@@ -109,7 +109,7 @@ function KayitForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                 placeholder="ornek@mail.com"
               />
             </label>
@@ -121,7 +121,7 @@ function KayitForm() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                 placeholder="En az 6 karakter"
               />
             </label>
@@ -135,7 +135,7 @@ function KayitForm() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 bg-orange-500 hover:bg-orange-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
+              className="mt-2 bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
             >
               {loading ? "Hesap oluşturuluyor..." : "Ücretsiz hesap oluştur"}
             </button>

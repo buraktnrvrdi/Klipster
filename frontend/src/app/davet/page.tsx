@@ -71,29 +71,29 @@ function DavetContent() {
   return (
     <main className="noir-selection relative min-h-screen bg-black text-white flex items-center justify-center px-6 overflow-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0d02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0202] to-black" />
         <ParallaxStars speed={0.6} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-600/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-red-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm text-center">
         <Link href="/" className="flex items-center gap-2 w-fit mx-auto">
-          <Logo className="h-9" />
+          <Logo className="h-14" />
         </Link>
 
         <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
           {status === "checking" || status === "accepting" ? (
             <>
-              <div className="mx-auto h-12 w-12 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                <Users className="h-5 w-5 text-orange-400 animate-pulse" />
+              <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <Users className="h-5 w-5 text-red-400 animate-pulse" />
               </div>
               <p className="mt-4 text-sm text-zinc-400">Davet kontrol ediliyor...</p>
             </>
           ) : status === "need-auth" ? (
             <>
-              <div className="mx-auto h-12 w-12 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                <Users className="h-5 w-5 text-orange-400" />
+              <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <Users className="h-5 w-5 text-red-400" />
               </div>
               <h1 className="mt-4 text-lg font-display font-semibold">Bir ekibe davet edildin</h1>
               <p className="mt-2 text-sm text-zinc-400">
@@ -102,7 +102,7 @@ function DavetContent() {
               <div className="mt-6 flex flex-col gap-3">
                 <Link
                   href={`/giris?invite=${token ?? ""}`}
-                  className="bg-orange-500 hover:bg-orange-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition"
+                  className="bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition"
                 >
                   Giriş yap
                 </Link>
@@ -127,7 +127,7 @@ function DavetContent() {
               </p>
               <button
                 onClick={() => router.push("/profil")}
-                className="mt-6 bg-orange-500 hover:bg-orange-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition"
+                className="mt-6 bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition"
               >
                 Profilime git
               </button>

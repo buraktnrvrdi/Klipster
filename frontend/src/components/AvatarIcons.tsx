@@ -161,21 +161,21 @@ function Orbit({ className, style }: IconProps) {
 }
 
 export const AVATAR_META: Record<string, { bg: string; Icon: (p: IconProps) => ReactElement }> = {
-  bolt: { bg: "#f97316", Icon: Bolt },
-  flame: { bg: "#ea580c", Icon: Flame },
-  spark: { bg: "#fb923c", Icon: Spark },
+  bolt: { bg: "#ef4444", Icon: Bolt },
+  flame: { bg: "#dc2626", Icon: Flame },
+  spark: { bg: "#f87171", Icon: Spark },
   comet: { bg: "#18181b", Icon: Comet },
   clip: { bg: "#1c1917", Icon: ClipMark },
-  wave: { bg: "#c2410c", Icon: Wave },
-  gem: { bg: "#9a3412", Icon: Gem },
+  wave: { bg: "#b91c1c", Icon: Wave },
+  gem: { bg: "#991b1b", Icon: Gem },
   crown: { bg: "#b45309", Icon: Crown },
   rocket: { bg: "#27272a", Icon: Rocket },
-  shield: { bg: "#f97316", Icon: Shield },
+  shield: { bg: "#ef4444", Icon: Shield },
   infinity: { bg: "#292524", Icon: Infinity },
   moon: { bg: "#3f3f46", Icon: Moon },
   sun: { bg: "#f59e0b", Icon: Sun },
   target: { bg: "#dc2626", Icon: Target },
-  pulse: { bg: "#ea580c", Icon: Pulse },
+  pulse: { bg: "#dc2626", Icon: Pulse },
   orbit: { bg: "#18181b", Icon: Orbit },
 };
 
@@ -186,7 +186,7 @@ export function AvatarBadge({ id, size = 32 }: { id: string | null; size?: numbe
   if (!meta) {
     return (
       <span
-        className="rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600 shrink-0"
+        className="rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-600 shrink-0"
         style={{ width: size, height: size }}
       >
         <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="currentColor">

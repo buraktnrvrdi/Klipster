@@ -74,7 +74,7 @@ export default function NavAuth() {
           className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-white/5 px-6 py-2 transition-transform active:scale-95"
         >
           <span className="absolute inset-0 border border-white/10 rounded-full" />
-          <span className="absolute inset-[-100%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,transparent_75%,#f97316_100%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+          <span className="absolute inset-[-100%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,transparent_75%,#ef4444_100%)] opacity-0 group-hover:opacity-100 transition-opacity" />
           <span className="absolute inset-[1px] rounded-full bg-black" />
           <span className="relative z-10 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
             Üye ol <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

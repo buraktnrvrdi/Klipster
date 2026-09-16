@@ -75,7 +75,7 @@ export default function PricingCalculator() {
     <section id="fiyatlandirma" className="relative py-24 px-6 overflow-hidden">
       {/* "Perde" (curtain) arka plan - katmanli gradyan isiklar */}
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-orange-600/15 rounded-full blur-[140px]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-red-600/15 rounded-full blur-[140px]" />
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[400px] bg-amber-500/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black" />
       </div>
@@ -106,7 +106,7 @@ export default function PricingCalculator() {
             <label htmlFor="video-slider" className="text-sm font-medium text-zinc-300">
               Ayda kaç video işlemeyi planlıyorsun?
             </label>
-            <span className="font-display text-2xl font-bold text-orange-500 tabular-nums">
+            <span className="font-display text-2xl font-bold text-red-500 tabular-nums">
               {videoCount} video
             </span>
           </div>
@@ -118,7 +118,7 @@ export default function PricingCalculator() {
             step={1}
             value={videoCount}
             onChange={(e) => setVideoCount(Number(e.target.value))}
-            className="w-full mt-4 accent-orange-500 cursor-pointer"
+            className="w-full mt-4 accent-red-500 cursor-pointer"
           />
           <div className="flex justify-between text-[11px] text-zinc-600 mt-1 font-mono">
             <span>1</span>
@@ -132,7 +132,7 @@ export default function PricingCalculator() {
             </div>
             <div className="text-right">
               <p className="text-xs uppercase tracking-widest text-zinc-500">Tahmini aylık maliyet</p>
-              <p className="text-lg font-semibold text-orange-500 mt-1">
+              <p className="text-lg font-semibold text-red-500 mt-1">
                 {recommendedPlan.priceLabel}
                 {perVideoCost && <span className="text-zinc-500 font-normal text-sm"> · video başına ~${perVideoCost}</span>}
               </p>
@@ -154,12 +154,12 @@ export default function PricingCalculator() {
                 whileHover={{ y: -4 }}
                 className={`relative flex flex-col p-8 rounded-xl backdrop-blur-xl transition-colors duration-300 ${
                   plan.highlighted
-                    ? "border border-orange-500 bg-white/[0.06] shadow-[0_0_40px_rgba(249,115,22,0.18)] md:scale-105 z-10"
+                    ? "border border-red-500 bg-white/[0.06] shadow-[0_0_40px_rgba(239,68,68,0.18)] md:scale-105 z-10"
                     : "border border-white/10 bg-white/[0.03] hover:border-white/20"
-                } ${isRecommended && !plan.highlighted ? "border-orange-500/50" : ""}`}
+                } ${isRecommended && !plan.highlighted ? "border-red-500/50" : ""}`}
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-black text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-500 text-black text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
                     Popüler
                   </div>
                 )}
@@ -171,7 +171,7 @@ export default function PricingCalculator() {
                   </div>
                 )}
 
-                <div className={`mb-4 inline-flex p-2.5 rounded-lg bg-white/5 border border-white/10 w-fit ${plan.highlighted ? "text-orange-500" : "text-zinc-400"}`}>
+                <div className={`mb-4 inline-flex p-2.5 rounded-lg bg-white/5 border border-white/10 w-fit ${plan.highlighted ? "text-red-500" : "text-zinc-400"}`}>
                   <plan.icon className="w-5 h-5" />
                 </div>
 
@@ -192,7 +192,7 @@ export default function PricingCalculator() {
                 <ul className="space-y-3.5 mb-8 flex-1">
                   {plan.features.map((item) => (
                     <li key={item} className="flex items-center gap-3 text-sm text-zinc-300">
-                      <Check className={`h-4 w-4 shrink-0 ${plan.highlighted ? "text-orange-500" : "text-zinc-500"}`} />
+                      <Check className={`h-4 w-4 shrink-0 ${plan.highlighted ? "text-red-500" : "text-zinc-500"}`} />
                       {item}
                     </li>
                   ))}
@@ -202,7 +202,7 @@ export default function PricingCalculator() {
                   href="/kayit"
                   className={`w-full text-center py-3 px-4 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
                     plan.highlighted
-                      ? "bg-orange-500 hover:bg-orange-600 text-black"
+                      ? "bg-red-500 hover:bg-red-600 text-black"
                       : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
                   }`}
                 >

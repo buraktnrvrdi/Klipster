@@ -10,7 +10,7 @@ export default function SlimePhone() {
     <div className="flex flex-col items-center">
       <p className="animate-fade-up relative z-10 font-display font-bold text-xl sm:text-2xl text-center tracking-tight mb-10 leading-relaxed">
         <span className="text-white">Videonu </span>
-        <span className="text-orange-500">popüler kliplere</span>
+        <span className="text-red-500">popüler kliplere</span>
         <span className="text-white"> çevir!</span>
       </p>
 
@@ -20,7 +20,7 @@ export default function SlimePhone() {
           className="absolute -inset-x-6 top-4 bottom-[-1.5rem] -z-10 rounded-[3rem] blur-3xl opacity-60"
           style={{
             background:
-              "radial-gradient(circle, rgba(249,115,22,0.45), transparent 70%)",
+              "radial-gradient(circle, rgba(239,68,68,0.45), transparent 70%)",
           }}
         />
 

@@ -61,7 +61,7 @@ export default function IletisimPage() {
   return (
     <main className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#160b02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#160202] to-black" />
         <ParallaxStars speed={0.4} />
         <div className="absolute inset-0 noir-grid" />
       </div>
@@ -69,7 +69,7 @@ export default function IletisimPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-9" />
+            <Logo className="h-14" />
           </Link>
           <Link
             href="/"
@@ -89,10 +89,10 @@ export default function IletisimPage() {
 
         <a
           href="mailto:brightnotedestek@gmail.com"
-          className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl px-6 py-5 hover:border-orange-500/40 transition-colors w-fit"
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl px-6 py-5 hover:border-red-500/40 transition-colors w-fit"
         >
-          <div className="h-10 w-10 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
-            <Mail className="h-4 w-4 text-orange-400" />
+          <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+            <Mail className="h-4 w-4 text-red-400" />
           </div>
           <div>
             <p className="text-sm font-medium text-zinc-200">brightnotedestek@gmail.com</p>

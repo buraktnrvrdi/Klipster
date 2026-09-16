@@ -342,16 +342,16 @@ export default function ProfilPage() {
   return (
     <main className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#160b02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#160202] to-black" />
         <ParallaxStars speed={0.4} />
-        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-orange-600/10 rounded-full blur-[140px] -translate-x-1/3 -translate-y-1/3" />
+        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[140px] -translate-x-1/3 -translate-y-1/3" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-9" />
+            <Logo className="h-14" />
           </Link>
           <Link
             href="/app"
@@ -370,17 +370,17 @@ export default function ProfilPage() {
         </p>
 
         {!me.user.email_verified && (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-500/20 bg-orange-500/[0.06] px-4 py-3">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
             <div className="flex items-center gap-2.5">
-              <Mail className="h-4 w-4 text-orange-400 shrink-0" />
-              <p className="text-sm text-orange-200">
+              <Mail className="h-4 w-4 text-red-400 shrink-0" />
+              <p className="text-sm text-red-200">
                 E-posta adresini henüz doğrulamadın — gelen kutunu kontrol et.
               </p>
             </div>
             <button
               onClick={handleResendVerification}
               disabled={resending}
-              className="text-xs font-semibold text-orange-400 hover:text-orange-300 transition-colors disabled:opacity-40"
+              className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
             >
               {resent ? "Gönderildi ✓" : resending ? "Gönderiliyor..." : "Doğrulama e-postasını tekrar gönder"}
             </button>
@@ -395,7 +395,7 @@ export default function ProfilPage() {
               <p className="font-display font-semibold text-lg leading-tight">{previewName}</p>
               <p className="text-xs text-zinc-500 mt-1 break-all">{me.user.email}</p>
             </div>
-            <span className="inline-block text-xs font-semibold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">
+            <span className="inline-block text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
               {PLAN_LABELS[me.user.plan] ?? me.user.plan} plan
             </span>
 
@@ -410,7 +410,7 @@ export default function ProfilPage() {
               {me.usage.limit !== null && (
                 <div className="mt-2 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-orange-500 transition-all"
+                    className="h-full rounded-full bg-red-500 transition-all"
                     style={{
                       width: `${Math.min(100, (me.usage.used / Math.max(1, me.usage.limit)) * 100)}%`,
                     }}
@@ -431,7 +431,7 @@ export default function ProfilPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 maxLength={24}
                 placeholder="Nasıl görünmek istersin?"
-                className="w-full max-w-[240px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                className="w-full max-w-[240px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
               />
               <p className="mt-1.5 text-xs text-zinc-500">En fazla 24 karakter. Boş bırakırsan e-postan gösterilir.</p>
             </div>
@@ -446,14 +446,14 @@ export default function ProfilPage() {
                     onClick={() => setSelectedAvatar(a)}
                     className={`relative h-14 w-14 rounded-xl flex items-center justify-center border-2 transition-all ${
                       selectedAvatar === a
-                        ? "border-orange-500 scale-105"
+                        ? "border-red-500 scale-105"
                         : "border-transparent hover:border-white/20"
                     }`}
                     style={{ background: AVATAR_META[a] ? "transparent" : undefined }}
                   >
                     <AvatarBadge id={a} size={44} />
                     {selectedAvatar === a && (
-                      <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-orange-500 text-black flex items-center justify-center">
+                      <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-black flex items-center justify-center">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
@@ -472,7 +472,7 @@ export default function ProfilPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-orange-500 text-black px-6 py-2.5 rounded-full font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-40"
+                className="bg-red-500 text-black px-6 py-2.5 rounded-full font-semibold text-sm hover:bg-red-600 transition disabled:opacity-40"
               >
                 {saving ? "Kaydediliyor..." : "Kaydet"}
               </button>
@@ -495,7 +495,7 @@ export default function ProfilPage() {
               {NEXT_PLAN[me.user.plan] && (
                 <Link
                   href="/#fiyatlandirma"
-                  className="flex items-center gap-1.5 bg-white/5 border border-white/10 hover:border-orange-500/40 hover:text-orange-400 text-zinc-200 px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  className="flex items-center gap-1.5 bg-white/5 border border-white/10 hover:border-red-500/40 hover:text-red-400 text-zinc-200 px-4 py-2 rounded-full text-sm font-medium transition-colors"
                 >
                   Planları incele
                   <ArrowUpRight className="h-3.5 w-3.5" />
@@ -515,21 +515,21 @@ export default function ProfilPage() {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Mevcut şifre"
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                 />
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Yeni şifre (en az 6 karakter)"
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                 />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Yeni şifre (tekrar)"
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                 />
               </div>
               {passwordError && (
@@ -568,12 +568,12 @@ export default function ProfilPage() {
                         value={orgName}
                         onChange={(e) => setOrgName(e.target.value)}
                         placeholder="Ekip adı (opsiyonel)"
-                        className="flex-1 min-w-[180px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                        className="flex-1 min-w-[180px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                       />
                       <button
                         onClick={handleCreateOrg}
                         disabled={orgCreating}
-                        className="bg-orange-500 text-black px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-40"
+                        className="bg-red-500 text-black px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-red-600 transition disabled:opacity-40"
                       >
                         {orgCreating ? "Oluşturuluyor..." : "Ekip oluştur"}
                       </button>
@@ -639,7 +639,7 @@ export default function ProfilPage() {
                               value={inviteEmail}
                               onChange={(e) => setInviteEmail(e.target.value)}
                               placeholder="ornek@eposta.com"
-                              className="flex-1 min-w-[180px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/60 transition-colors"
+                              className="flex-1 min-w-[180px] bg-black/40 border border-white/10 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
                             />
                             <button
                               onClick={handleInvite}
@@ -668,7 +668,7 @@ export default function ProfilPage() {
                                 <div className="flex items-center gap-3 shrink-0">
                                   <button
                                     onClick={() => copyInviteLink(inv.token)}
-                                    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-orange-400 transition-colors"
+                                    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-red-400 transition-colors"
                                   >
                                     <Copy className="h-3 w-3" />
                                     {copiedToken === inv.token ? "Kopyalandı ✓" : "Linki kopyala"}

@@ -117,45 +117,48 @@ export default function LandingPage() {
     <div className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       {/* Global koyu arka plan: parallax yildizlar + grid + turuncu isik */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0d02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a0202] to-black" />
         <ParallaxStars speed={1} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-600/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 noir-grid" />
       </div>
 
       <div className="noir-gradient-blur" />
 
-      {/* Navbar */}
+      {/* Navbar - kirmizi tema ile uyumlu cerceve + yumusak halo parlamasi */}
       <header className="fixed top-0 left-0 w-full z-50 pt-6 px-4">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl">
-          <Link
-            href="/"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="flex items-center gap-2"
-          >
-            <Logo className="h-9" />
-          </Link>
-
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#ozellikler" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Özellikler
-            </a>
-            <a href="#nasil-calisir" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Nasıl Çalışır
-            </a>
-            <a href="#karsilastirma" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Karşılaştırma
-            </a>
-            <a href="#fiyatlandirma" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Fiyatlandırma
-            </a>
-            <Link href="/app" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Video Oluştur
+        <div className="max-w-5xl mx-auto relative">
+          <div className="absolute -inset-2 rounded-full bg-red-600/20 blur-xl animate-glow pointer-events-none" />
+          <nav className="relative flex items-center justify-between bg-black/60 backdrop-blur-xl border border-red-500/25 rounded-full px-6 py-3 shadow-[0_0_25px_rgba(239,68,68,0.15)] transition-all duration-500 hover:border-red-500/45 hover:shadow-[0_0_35px_rgba(239,68,68,0.25)]">
+            <Link
+              href="/"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="flex items-center gap-2"
+            >
+              <Logo className="h-14" />
             </Link>
-          </div>
 
-          <NavAuth />
-        </nav>
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#ozellikler" className="relative text-sm font-medium text-zinc-400 hover:text-white transition-colors after:absolute after:left-0 after:-bottom-1.5 after:h-[1.5px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full">
+                Özellikler
+              </a>
+              <a href="#nasil-calisir" className="relative text-sm font-medium text-zinc-400 hover:text-white transition-colors after:absolute after:left-0 after:-bottom-1.5 after:h-[1.5px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full">
+                Nasıl Çalışır
+              </a>
+              <a href="#karsilastirma" className="relative text-sm font-medium text-zinc-400 hover:text-white transition-colors after:absolute after:left-0 after:-bottom-1.5 after:h-[1.5px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full">
+                Karşılaştırma
+              </a>
+              <a href="#fiyatlandirma" className="relative text-sm font-medium text-zinc-400 hover:text-white transition-colors after:absolute after:left-0 after:-bottom-1.5 after:h-[1.5px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full">
+                Fiyatlandırma
+              </a>
+              <Link href="/app" className="relative text-sm font-medium text-zinc-400 hover:text-white transition-colors after:absolute after:left-0 after:-bottom-1.5 after:h-[1.5px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full">
+                Video Oluştur
+              </Link>
+            </div>
+
+            <NavAuth />
+          </nav>
+        </div>
       </header>
 
       <main className="relative z-10">
@@ -165,13 +168,13 @@ export default function LandingPage() {
 
             <h1 className="font-display text-5xl sm:text-7xl md:text-8xl font-bold tracking-tighter leading-[0.98] mb-8 animate-fade-up delay-1">
               <span className="block text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40">
-                Konuş, kaydet,
+                Bir video yükle,
               </span>
               <span className="block text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40">
-                <span className="text-orange-500 inline-block relative">
-                  gerisini bize bırak
+                <span className="text-red-500 inline-block relative">
+                  viral klipler çıksın
                   <svg
-                    className="absolute w-full h-3 -bottom-2 left-0 text-orange-500 opacity-60"
+                    className="absolute w-full h-3 -bottom-2 left-0 text-red-500 opacity-60"
                     viewBox="0 0 100 10"
                     preserveAspectRatio="none"
                   >
@@ -183,8 +186,8 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-lg md:text-2xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed animate-fade-up delay-2">
-              Klipster; podcast, röportaj ve yayın kayıtlarını analiz eder, en çarpıcı anları
-              belirler, dikey formata dönüştürür ve altyazısını otomatik olarak ekler.
+              Videonu yükle, dakikalar içinde TikTok/Reels/Shorts&apos;a hazır,
+              altyazılı klipler al.
             </p>
 
             <div className="flex flex-col md:flex-row items-center justify-center gap-4 animate-fade-up delay-3">
@@ -223,7 +226,7 @@ export default function LandingPage() {
             <div className="mb-16 text-center max-w-2xl mx-auto">
               <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight font-display mb-6">
                 Kurgu masana <br />
-                <span className="text-orange-500">gerek yok</span>
+                <span className="text-red-500">gerek yok</span>
               </h2>
               <p className="text-lg text-zinc-400 font-light">
                 Manuel kurgu ve altyazılamaya harcadığın zamanı geri kazan.
@@ -232,9 +235,9 @@ export default function LandingPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 h-auto lg:h-[640px]">
               {/* Buyuk oncu kart */}
-              <div className="lg:col-span-2 lg:row-span-2 group relative overflow-hidden p-8 border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black hover:border-white/20 transition-all rounded-xl">
+              <div className="lg:col-span-2 lg:row-span-2 group relative overflow-hidden p-8 border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl">
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="mb-6 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 text-orange-500 w-fit">
+                  <div className="mb-6 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 text-red-500 w-fit">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <h3 className="text-3xl font-semibold text-white font-display mb-4 tracking-tight">
@@ -245,18 +248,18 @@ export default function LandingPage() {
                     en ilgi çekici anları saniyeler içinde tespit eder ve öncelik sırasına göre listeler.
                   </p>
                   <div className="mt-auto flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                    <span className="text-xs font-mono text-orange-500">TÜMÜNÜ KEŞFET</span>
-                    <ArrowRight className="w-4 h-4 text-orange-500" />
+                    <span className="text-xs font-mono text-red-500">TÜMÜNÜ KEŞFET</span>
+                    <ArrowRight className="w-4 h-4 text-red-500" />
                   </div>
                 </div>
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none"
-                  style={{ background: "radial-gradient(circle at top right, #f97316, transparent 70%)" }}
+                  style={{ background: "radial-gradient(circle at top right, #ef4444, transparent 70%)" }}
                 />
               </div>
 
               {/* İlk ikincil kart daha genis */}
-              <div className="lg:col-span-2 group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-white/20 transition-all rounded-xl">
+              <div className="lg:col-span-2 group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl">
                 <div className="relative z-10 flex flex-col h-full">
                   {(() => {
                     const PrimaryIcon = BENTO_SECONDARY[0].icon;
@@ -279,7 +282,7 @@ export default function LandingPage() {
               {BENTO_SECONDARY.slice(1).map((f) => (
                 <div
                   key={f.title}
-                  className="group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-white/20 transition-all rounded-xl"
+                  className="group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl"
                 >
                   <div className="relative z-10">
                     <div className={`mb-4 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 w-fit ${f.color}`}>
@@ -305,9 +308,9 @@ export default function LandingPage() {
               {PERSONAS.map((p) => (
                 <div
                   key={p.title}
-                  className="bg-black border border-white/10 hover:border-white/20 transition-all rounded-2xl p-8"
+                  className="bg-black border border-white/10 hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-2xl p-8"
                 >
-                  <p.icon className="h-5 w-5 text-orange-500" />
+                  <p.icon className="h-5 w-5 text-red-500" />
                   <h3 className="font-semibold mt-4 text-white">{p.title}</h3>
                   <p className="mt-2 text-sm text-zinc-400 leading-relaxed">{p.desc}</p>
                 </div>
@@ -326,7 +329,7 @@ export default function LandingPage() {
             <div className="grid sm:grid-cols-3 gap-10">
               {STEPS.map((s) => (
                 <div key={s.n} className="border-t border-white/10 pt-6">
-                  <span className="font-mono text-sm text-orange-500">{s.n}</span>
+                  <span className="font-mono text-sm text-red-500">{s.n}</span>
                   <h3 className="font-semibold text-lg mt-3 text-white">{s.title}</h3>
                   <p className="mt-2 text-sm text-zinc-400 leading-relaxed">{s.desc}</p>
                 </div>
@@ -336,7 +339,7 @@ export default function LandingPage() {
         </section>
 
         {/* Marka bandı */}
-        <div className="w-full bg-orange-500 py-20 px-6">
+        <div className="w-full bg-red-500 py-20 px-6">
           <div className="max-w-4xl mx-auto text-center">
             <h3 className="text-3xl md:text-5xl font-bold text-black font-display leading-tight">
               Kurguyla geçirdiğin saatler artık dakikalar.
@@ -361,7 +364,7 @@ export default function LandingPage() {
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.03]">
                   <th className="text-left font-medium text-zinc-500 px-6 py-4">&nbsp;</th>
-                  <th className="text-center font-semibold px-6 py-4 text-orange-500">Klipster</th>
+                  <th className="text-center font-semibold px-6 py-4 text-red-500">Klipster</th>
                   <th className="text-center font-medium text-zinc-500 px-6 py-4">Opus Clip</th>
                   <th className="text-center font-medium text-zinc-500 px-6 py-4">Submagic</th>
                 </tr>
@@ -373,7 +376,7 @@ export default function LandingPage() {
                     <td className="px-6 py-4 text-center font-medium text-white">
                       {typeof row.us === "boolean" ? (
                         row.us ? (
-                          <Check className="h-4 w-4 text-orange-500 inline" />
+                          <Check className="h-4 w-4 text-red-500 inline" />
                         ) : (
                           <X className="h-4 w-4 text-zinc-700 inline" />
                         )
@@ -439,7 +442,7 @@ export default function LandingPage() {
         <section className="py-32 px-6 text-center">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-5xl md:text-7xl font-bold font-display mb-8 tracking-tighter">
-              Viral anın <span className="text-orange-500">videonun içinde</span> bekliyor.
+              Viral anın <span className="text-red-500">videonun içinde</span> bekliyor.
             </h2>
             <p className="text-xl text-zinc-400 mb-12">Kredi kartı gerekmez, kayıt saniyeler sürer.</p>
             <Link href="/kayit" className="noir-shiny-cta group inline-flex">
@@ -457,7 +460,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-5 gap-12 mb-20 relative z-10">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <Logo className="h-12" />
+              <Logo className="h-16" />
             </div>
             <p className="text-zinc-500 max-w-xs leading-relaxed">
               İçerik üreticiler için sıfırdan tasarlanan yapay zeka klip stüdyosu.
@@ -465,7 +468,7 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-6">Ürün</h4>
+            <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-6">Ürün</h4>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a></li>
               <li><a href="#nasil-calisir" className="hover:text-white transition-colors">Nasıl Çalışır</a></li>
@@ -475,7 +478,7 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-6">Hesap</h4>
+            <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-6">Hesap</h4>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><Link href="/giris" className="hover:text-white transition-colors">Giriş Yap</Link></li>
               <li><Link href="/kayit" className="hover:text-white transition-colors">Üye Ol</Link></li>
@@ -484,7 +487,7 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-6">Yasal</h4>
+            <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-6">Yasal</h4>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><Link href="/gizlilik-politikasi" className="hover:text-white transition-colors">Gizlilik Politikası</Link></li>
               <li><Link href="/kullanim-kosullari" className="hover:text-white transition-colors">Kullanım Koşulları</Link></li>

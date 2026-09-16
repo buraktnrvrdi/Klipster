@@ -20,7 +20,7 @@ export default function GizlilikPolitikasiPage() {
   return (
     <main className="noir-selection min-h-screen bg-black text-white font-sans relative overflow-x-hidden">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#160b02] to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#160202] to-black" />
         <ParallaxStars speed={0.4} />
         <div className="absolute inset-0 noir-grid" />
       </div>
@@ -28,7 +28,7 @@ export default function GizlilikPolitikasiPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-9" />
+            <Logo className="h-14" />
           </Link>
           <Link
             href="/"
@@ -57,7 +57,7 @@ export default function GizlilikPolitikasiPage() {
             Klipster hizmeti şu an için şahıs bünyesinde, Burak tarafından işletilmektedir (şirket
             kuruluş süreci devam etmektedir - bu bölüm resmi bir şirket kurulduğunda güncellenecektir).
             Kişisel verilerinizle ilgili sorularınız için{" "}
-            <a href="mailto:brightnotedestek@gmail.com" className="text-orange-400 hover:underline">
+            <a href="mailto:brightnotedestek@gmail.com" className="text-red-400 hover:underline">
               brightnotedestek@gmail.com
             </a>{" "}
             adresinden bize ulaşabilirsiniz.
@@ -126,11 +126,11 @@ export default function GizlilikPolitikasiPage() {
           </ul>
           <p>
             Bu haklarını kullanmak için{" "}
-            <a href="mailto:brightnotedestek@gmail.com" className="text-orange-400 hover:underline">
+            <a href="mailto:brightnotedestek@gmail.com" className="text-red-400 hover:underline">
               brightnotedestek@gmail.com
             </a>{" "}
             adresine yazabilir, veya doğrudan{" "}
-            <Link href="/profil" className="text-orange-400 hover:underline">
+            <Link href="/profil" className="text-red-400 hover:underline">
               profilinden
             </Link>{" "}
             hesabını dilediğin zaman silebilirsin.
