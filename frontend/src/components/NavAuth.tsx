@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown, LogOut, LayoutDashboard, UserRound, ArrowRight } from "lucide-react";
 import { AvatarBadge } from "@/components/AvatarIcons";
 
@@ -18,6 +19,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 export default function NavAuth() {
+  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -53,7 +55,9 @@ export default function NavAuth() {
     localStorage.removeItem("klipster_token");
     setMe(null);
     setOpen(false);
-    window.location.href = "/";
+    // Next.js router ile client-side navigasyon (ESLint: window.location.href
+    // internal sayfalar icin onerilmiyor - tam sayfa yenilemesi yerine bunu kullan).
+    router.push("/");
   }
 
   if (loading) {
