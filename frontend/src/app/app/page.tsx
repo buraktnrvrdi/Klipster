@@ -71,6 +71,16 @@ const STATUS_LABELS: Record<string, string> = {
   error: "Bir hata oluştu",
 };
 
+// Isleme hattinin sirali asamalari - ilerleme cubugu/adim listesi bu sirayla
+// gosterilir. "error" ayri ele alinir (bu diziye dahil degil).
+const PIPELINE_STEPS: { id: JobStatus; label: string }[] = [
+  { id: "queued", label: "Sırada" },
+  { id: "transcribing", label: "Metne dönüştürme" },
+  { id: "finding_highlights", label: "Öne çıkan anlar" },
+  { id: "rendering", label: "Klip üretimi" },
+  { id: "done", label: "Tamamlandı" },
+];
+
 const FALLBACK_STYLES: Record<string, string> = {
   klasik: "Klasik",
   vurgu: "Vurgulu (enerjik)",
@@ -1588,12 +1598,45 @@ export default function AppPage() {
           </button>
         </div>
 
-        {status !== "idle" && (
-          <div className="flex items-center gap-2 text-zinc-400 text-sm">
-            {isBusy && (
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/20 border-t-red-500 animate-spin" />
-            )}
-            <span>{STATUS_LABELS[status]}</span>
+        {status !== "idle" && status !== "error" && (
+          <div className="w-full flex flex-col gap-3">
+            <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full bg-red-500 transition-all duration-500 ease-out"
+                style={{
+                  width: `${
+                    (PIPELINE_STEPS.findIndex((s) => s.id === status) /
+                      (PIPELINE_STEPS.length - 1)) *
+                    100
+                  }%`,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-1 flex-wrap">
+              {PIPELINE_STEPS.map((step) => {
+                const stepIndex = PIPELINE_STEPS.findIndex((s) => s.id === step.id);
+                const currentIndex = PIPELINE_STEPS.findIndex((s) => s.id === status);
+                const isDone = stepIndex < currentIndex || status === "done";
+                const isCurrent = step.id === status && status !== "done";
+                return (
+                  <div key={step.id} className="flex items-center gap-1.5 text-xs">
+                    {isDone ? (
+                      <span className="h-4 w-4 rounded-full bg-red-500 text-black flex items-center justify-center text-[10px] font-bold shrink-0">
+                        ✓
+                      </span>
+                    ) : isCurrent ? (
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-white/20 border-t-red-500 animate-spin shrink-0" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-white/10 shrink-0" />
+                    )}
+                    <span className={isCurrent ? "text-zinc-200 font-medium" : isDone ? "text-zinc-400" : "text-zinc-600"}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-zinc-500 text-xs">{STATUS_LABELS[status]}</p>
           </div>
         )}
         {error && (
