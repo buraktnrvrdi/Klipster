@@ -3,7 +3,9 @@ video indirme. Boylece kullanici bilgisayarindan dosya yuklemek yerine bir
 video linki yapistirarak da ayni klip uretim hattini calistirabilir - sanki
 bilgisayarindan yuklemis gibi (bkz. app/main.py _start_processing_job)."""
 import ipaddress
+import os
 import re
+import shutil
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
@@ -51,6 +53,11 @@ def _assert_safe_url(url: str) -> None:
 # makul degil - bu esigin uzerindeki videolar indirilmeden reddedilir.
 MAX_DURATION_SECONDS = 4 * 60 * 60  # 4 saat
 
+# Diskte bu kadar bostan az yer varsa yeni indirmeyi baslatmadan reddet -
+# kotu niyetli/coklu buyuk indirmelerin diski tamamen doldurup sunucuyu
+# (SQLite yazmalari dahil) calismaz hale getirmesini onlemek icin.
+MIN_FREE_DISK_BYTES = int(os.environ.get("MIN_FREE_DISK_GB", "2")) * 1024 * 1024 * 1024
+
 
 class VideoUrlError(Exception):
     """Mesaji oldugu gibi kullaniciya gosterilebilecek, anlasilir bir hata."""
@@ -67,6 +74,8 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     _assert_safe_url(url)
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(out_dir).free < MIN_FREE_DISK_BYTES:
+        raise VideoUrlError("Sunucuda şu an yeterli depolama alanı yok - lütfen daha sonra tekrar dene")
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")
 
     ydl_opts = {

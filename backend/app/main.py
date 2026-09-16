@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -48,7 +49,7 @@ from app.services.highlights import (
     translate_to_english,
 )
 from app.services.transcribe import transcribe
-from app.services.youtube import VideoUrlError, download_video
+from app.services.youtube import MIN_FREE_DISK_BYTES, VideoUrlError, download_video
 from app.services.video import (
     ASPECT_PRESETS,
     DEFAULT_ASPECT,
@@ -654,15 +655,21 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
                 "SELECT id FROM jobs WHERE user_id = ?", (current_user["id"],)
             ).fetchall()
         ]
-        # sessions/jobs, users tablosundaki ON DELETE CASCADE sayesinde
-        # otomatik siliniyor.
-        conn.execute("DELETE FROM users WHERE id = ?", (current_user["id"],))
-        conn.commit()
 
+    # Dosyalar DB kaydi silinmeden ONCE temizlenir - islem yarida (crash/deploy)
+    # kesilirse hesap hala var olur ve silme tekrar denenebilir; ters sirada
+    # yapilsaydi DB kaydi gidip dosyalar sahipsiz kalabilirdi (hicbir yerden
+    # bulunup temizlenemezdi).
     for job_id in job_ids:
         shutil.rmtree(OUTPUT_DIR / job_id, ignore_errors=True)
         for f in UPLOAD_DIR.glob(f"{job_id}_*"):
             f.unlink(missing_ok=True)
+
+    with get_conn() as conn:
+        # sessions/jobs, users tablosundaki ON DELETE CASCADE sayesinde
+        # otomatik siliniyor.
+        conn.execute("DELETE FROM users WHERE id = ?", (current_user["id"],))
+        conn.commit()
 
     return {"ok": True}
 
@@ -1123,6 +1130,9 @@ async def upload_video(
     highlight_color: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
+    if shutil.disk_usage(UPLOAD_DIR).free < MIN_FREE_DISK_BYTES:
+        raise HTTPException(status_code=507, detail="Sunucuda şu an yeterli depolama alanı yok - lütfen daha sonra tekrar dene")
+
     job_id = str(uuid.uuid4())
     safe_filename = _safe_filename(file.filename)
     video_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
@@ -1149,7 +1159,10 @@ async def upload_video_from_url(
     yuklenmis gibi ayni kredi hesaplamasi ve klip uretim hatti calisir."""
     job_id = str(uuid.uuid4())
     try:
-        video_path, title = download_video(payload.url, UPLOAD_DIR, job_id)
+        # download_video senkron/bloklayici bir ag cagrisi (yt-dlp) - buyuk bir
+        # video icin dakikalarca surebilir; threadpool'a atmazsak tum event
+        # loop'u (dolayisiyla o sirada gelen diger TUM istekleri) bloklardi.
+        video_path, title = await run_in_threadpool(download_video, payload.url, UPLOAD_DIR, job_id)
     except VideoUrlError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1518,12 +1531,14 @@ async def delete_clip(
     if not clip.get("manual"):
         raise HTTPException(status_code=400, detail="Sadece elle eklenen klipler silinebilir")
 
-    job_out_dir = OUTPUT_DIR / job_id
+    job_out_dir = (OUTPUT_DIR / job_id).resolve()
     for key in ("url", "cover_url", "subtitles_en_url"):
         url = clip.get(key)
         if url:
-            fname = url.split("/")[-1].split("?")[0]
-            (job_out_dir / fname).unlink(missing_ok=True)
+            fname = _safe_filename(url.split("/")[-1].split("?")[0])
+            target = (job_out_dir / fname).resolve()
+            if target.parent == job_out_dir:
+                target.unlink(missing_ok=True)
 
     clips.pop(clip_index)
     with get_conn() as conn:
@@ -1584,7 +1599,7 @@ async def translate_clip(
         chunks = chunk_words(remapped, style=style)
         if not chunks:
             raise HTTPException(status_code=409, detail="Bu klip için altyazı metni bulunamadı")
-        translated = translate_subtitles([c["text"] for c in chunks], lang_label)
+        translated = await run_in_threadpool(translate_subtitles, [c["text"] for c in chunks], lang_label)
         for c, t in zip(chunks, translated):
             c["text"] = t
         srt_path = job_out_dir / f"{name}_{payload.language}.srt"
@@ -1645,7 +1660,7 @@ async def generate_clip_caption(
         raise HTTPException(status_code=409, detail="Bu klip için transkript metni bulunamadı")
 
     try:
-        result = generate_social_caption(transcript_text)
+        result = await run_in_threadpool(generate_social_caption, transcript_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Paylaşım metni oluşturulamadı: {e}")
 
