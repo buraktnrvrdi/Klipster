@@ -97,6 +97,7 @@ SUBTITLE_COLOR_PRESETS = [
     {"id": "yesil", "label": "Yeşil", "hex": "#22C55E"},
     {"id": "mavi", "label": "Mavi", "hex": "#3B82F6"},
     {"id": "pembe", "label": "Pembe", "hex": "#EC4899"},
+    {"id": "kirmizi", "label": "Kırmızı", "hex": "#EF4444"},
 ]
 DEFAULT_SUBTITLE_COLOR = "#FFFFFF"
 
@@ -122,6 +123,9 @@ DEFAULT_ASPECT = "9:16"
 SUBTITLE_ANIMATIONS = {
     "statik": {"label": "Statik (klasik)"},
     "karaoke": {"label": "Kelime vurgulu (karaoke)"},
+    "pop": {"label": "Zıplayan (pop)"},
+    "daktilo": {"label": "Daktilo (harf harf)"},
+    "kayan": {"label": "Kayarak giren"},
 }
 DEFAULT_SUBTITLE_ANIMATION = "statik"
 
@@ -129,6 +133,21 @@ DEFAULT_SUBTITLE_ANIMATION = "statik"
 # sectigi subtitle_color hala TUM metnin temel (PrimaryColour) rengini belirler,
 # bu sadece o an soylenen kelimeyi one cikaran AYRI bir vurgu rengidir.
 KARAOKE_HIGHLIGHT_HEX = "#FFEB3B"
+
+# Karaoke/pop vurgu renginin varsayilani - KARAOKE_HIGHLIGHT_HEX ile ayni,
+# generate_ass/make_vertical_clip parametrelerinde DEFAULT_SUBTITLE_COLOR gibi
+# isimlendirme tutarliligi icin ayri bir sabit olarak da tutuluyor.
+DEFAULT_HIGHLIGHT_COLOR = KARAOKE_HIGHLIGHT_HEX
+
+# Daktilo (typewriter) animasyonunda her karakter-adimi icin minimum sure (saniye) -
+# cok uzun chunk'larda bile adimlar bu sureden kisa olmaz, boylece "strobe" etkisi
+# (asiri hizli yanip-sonme) engellenir.
+TYPEWRITER_MIN_STEP_SEC = 0.03
+
+# Pop (ziplayan) animasyonunda buyutme-asiri gecis (overshoot) ve oturma sureleri (ms) -
+# gercek bir ffmpeg/libass yakma testiyle dogrulanan degerler (bkz. generate_ass).
+POP_OVERSHOOT_MS = 120
+POP_SETTLE_MS = 200
 
 
 def _hex_to_ass_color(hex_color: str) -> str:
@@ -280,6 +299,29 @@ def remap_words(words: list, clip_start: float, clip_end: float, keep_intervals:
     return out
 
 
+def _slide_rest_position(style: str, position: str, aspect: str) -> tuple[int, int, int]:
+    """\move ile kayarak-giren animasyonu icin metnin OTURACAGI (rest) nokta
+    koordinatini hesaplar. \move, stilin otomatik hizalama/MarginV tabanli
+    konumlandirmasini TAMAMEN GECERSIZ KILDIGI icin, o otomatik konumu burada
+    elle yeniden uretiyoruz (Alignment 2=alt-orta, 5=orta-orta, 8=ust-orta;
+    MarginV alt/ust hizalamada kenardan mesafe, ortada kullanilmaz)."""
+    preset = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])
+    aspect_preset = ASPECT_PRESETS.get(aspect, ASPECT_PRESETS[DEFAULT_ASPECT])
+    pos_preset = SUBTITLE_POSITIONS.get(position, SUBTITLE_POSITIONS[DEFAULT_SUBTITLE_POSITION])
+    alignment = pos_preset["alignment"]
+    fields = preset["style_line"].split(",")
+    margin_v = int(fields[14])
+    res_x, res_y = aspect_preset["res_x"], aspect_preset["res_y"]
+    x = res_x // 2
+    if alignment == 8:  # ust
+        y = margin_v
+    elif alignment == 5:  # orta
+        y = res_y // 2
+    else:  # 2, alt (varsayilan)
+        y = res_y - margin_v
+    return x, y, alignment
+
+
 def generate_ass(
     words: list,
     ass_path: Path,
@@ -288,6 +330,7 @@ def generate_ass(
     position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
     animation: str = DEFAULT_SUBTITLE_ANIMATION,
+    highlight_color: str = KARAOKE_HIGHLIGHT_HEX,
 ):
     """Zaten YENI zaman eksenine gore (0'dan baslayan) remap edilmis kelimelerden
     stili gomulu bir .ass altyazi dosyasi uretir.
@@ -301,7 +344,7 @@ def generate_ass(
     Boylece video oynarken kelime kelime vurgu kayarak ilerler (karaoke hissi)."""
     preset = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])
     chunk_size = preset["chunk_size"]
-    highlight_color = _hex_to_ass_color(KARAOKE_HIGHLIGHT_HEX)
+    highlight_color_ass = _hex_to_ass_color(highlight_color or KARAOKE_HIGHLIGHT_HEX)
     lines = []
     for i in range(0, len(words), chunk_size):
         group = words[i:i + chunk_size]
@@ -318,7 +361,7 @@ def generate_ass(
                 for k, w in enumerate(group):
                     if k == j:
                         parts.append(
-                            f"{{\\c{highlight_color}\\b1\\fscx112\\fscy112}}{w['word']}{{\\r}}"
+                            f"{{\\c{highlight_color_ass}\\b1\\fscx112\\fscy112}}{w['word']}{{\\r}}"
                         )
                     else:
                         parts.append(w["word"])
@@ -328,6 +371,82 @@ def generate_ass(
                 lines.append(
                     f"Dialogue: 0,{_format_ass_time(w_start)},{_format_ass_time(w_end)},Default,,0,0,0,,{text}"
                 )
+        elif animation == "pop":
+            # Karaoke ile ayni yapi (chunk boyunca hepsi gorunur, aktif kelime
+            # pencereleri sirayla ilerler) ama vurguyu RENK yerine bir "pop"
+            # (kucuk baslayip hafifce asiri buyuyup 100%'e oturan) olcek
+            # gecisiyle yapiyoruz - \t() transform + \fscx/\fscy, bu
+            # ortamda dogrulanmis calisan tag'ler (karaoke'de de kullaniliyor).
+            chunk_end = group[-1]["end"]
+            for j, active in enumerate(group):
+                w_start = active["start"]
+                w_end = group[j + 1]["start"] if j + 1 < len(group) else chunk_end
+                if w_end <= w_start:
+                    w_end = max(active["end"], w_start + 0.05)
+                parts = []
+                for k, w in enumerate(group):
+                    if k == j:
+                        parts.append(
+                            f"{{\\c{highlight_color_ass}\\fscx60\\fscy60\\b1"
+                            f"\\t(0,{POP_OVERSHOOT_MS},\\fscx115\\fscy115)"
+                            f"\\t({POP_OVERSHOOT_MS},{POP_SETTLE_MS},\\fscx100\\fscy100)}}"
+                            f"{w['word']}{{\\r}}"
+                        )
+                    else:
+                        parts.append(w["word"])
+                text = "".join(parts).strip().replace("\n", " ")
+                if not text:
+                    continue
+                lines.append(
+                    f"Dialogue: 0,{_format_ass_time(w_start)},{_format_ass_time(w_end)},Default,,0,0,0,,{text}"
+                )
+        elif animation == "daktilo":
+            # Karakter karakter yaziliyormus gibi gorunmesi icin chunk'in
+            # toplam suresini kucuk adimlara bolup, her adimda bir onceki
+            # metnin biraz daha uzun bir on-eki (prefix) gosteren AYRI
+            # Dialogue satirlari uretiyoruz (ASS clip/tag hilesi degil, duz
+            # coklu satir - en garanti calisan yontem).
+            start = group[0]["start"]
+            end = group[-1]["end"]
+            full_text = "".join(w["word"] for w in group).strip()
+            if not full_text:
+                continue
+            total_dur = max(end - start, 0.01)
+            char_count = len(full_text)
+            step_count = min(char_count, max(1, int(total_dur / TYPEWRITER_MIN_STEP_SEC)))
+            step_dur = total_dur / step_count
+            for step in range(step_count):
+                chars_shown = max(1, round((step + 1) * char_count / step_count))
+                step_text = full_text[:chars_shown].replace("\n", " ")
+                step_start = start + step * step_dur
+                step_end = end if step == step_count - 1 else start + (step + 1) * step_dur
+                lines.append(
+                    f"Dialogue: 0,{_format_ass_time(step_start)},{_format_ass_time(step_end)},"
+                    f"Default,,0,0,0,,{step_text}"
+                )
+        elif animation == "kayan":
+            # Chunk, dinlenme (rest) konumunun biraz altindan/ustunden baslayip
+            # \move() ile kisa surede yerine kayarak oturuyor. \move, stilin
+            # otomatik hizalamasini GECERSIZ KILDIGI icin dinlenme x/y'sini
+            # _slide_rest_position ile stilin Alignment+MarginV degerlerinden
+            # elle yeniden hesapliyoruz (aksi halde metin yanlis yere ziplar).
+            rest_x, rest_y, alignment = _slide_rest_position(style, position, aspect)
+            offset_y = 40
+            slide_ms = 180
+            if alignment == 8:  # ust: yukaridan asagi kayarak gelsin (ekran disina
+                start_y = rest_y - offset_y  # tasmasin diye yukari degil asagi yonlu)
+            else:  # alt / orta: alttan yukari kayarak gelsin (dogal TikTok hissi)
+                start_y = rest_y + offset_y
+            start = group[0]["start"]
+            end = group[-1]["end"]
+            text = "".join(w["word"] for w in group).strip().replace("\n", " ")
+            if not text:
+                continue
+            move_tag = f"\\move({rest_x},{start_y},{rest_x},{rest_y},0,{slide_ms})"
+            lines.append(
+                f"Dialogue: 0,{_format_ass_time(start)},{_format_ass_time(end)},"
+                f"Default,,0,0,0,,{{{move_tag}}}{text}"
+            )
         else:
             start = group[0]["start"]
             end = group[-1]["end"]
@@ -433,6 +552,7 @@ def make_vertical_clip(
     position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
     animation: str = DEFAULT_SUBTITLE_ANIMATION,
+    highlight_color: str = KARAOKE_HIGHLIGHT_HEX,
 ) -> Path:
     """Videodan bir klip keser (dolgu kelime/uzun sessizlik varsa temizler),
     secilen en-boy oranina kirpar ve altyazi ekler."""
@@ -447,7 +567,7 @@ def make_vertical_clip(
     generate_ass(
         remapped_words, ass_path, style=style,
         subtitle_color=subtitle_color, position=position, aspect=aspect,
-        animation=animation,
+        animation=animation, highlight_color=highlight_color,
     )
 
     aspect_preset = ASPECT_PRESETS.get(aspect, ASPECT_PRESETS[DEFAULT_ASPECT])

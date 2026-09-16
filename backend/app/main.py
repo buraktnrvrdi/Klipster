@@ -51,6 +51,7 @@ from app.services.video import (
     ASPECT_PRESETS,
     DEFAULT_ASPECT,
     DEFAULT_STYLE,
+    DEFAULT_HIGHLIGHT_COLOR,
     DEFAULT_SUBTITLE_ANIMATION,
     DEFAULT_SUBTITLE_COLOR,
     DEFAULT_SUBTITLE_POSITION,
@@ -160,15 +161,17 @@ SUBTITLE_LANGUAGES = {
 
 def _validate_render_options(
     subtitle_color: str | None, subtitle_position: str | None, aspect: str | None,
-    subtitle_animation: str | None = None,
-) -> tuple[str, str, str, str]:
-    """Altyazi rengi/konumu, en-boy orani ve altyazi animasyonu kullanici
-    girdisini dogrular, gecersiz/eksik deger gelirse sessizce varsayilana duser."""
+    subtitle_animation: str | None = None, highlight_color: str | None = None,
+) -> tuple[str, str, str, str, str]:
+    """Altyazi rengi/konumu, en-boy orani, altyazi animasyonu ve vurgu (karaoke/pop
+    aktif kelime) rengi kullanici girdisini dogrular, gecersiz/eksik deger gelirse
+    sessizce varsayilana duser."""
     color = subtitle_color if subtitle_color and HEX_COLOR_RE.match(subtitle_color) else DEFAULT_SUBTITLE_COLOR
     position = subtitle_position if subtitle_position in SUBTITLE_POSITIONS else DEFAULT_SUBTITLE_POSITION
     asp = aspect if aspect in ASPECT_PRESETS else DEFAULT_ASPECT
     anim = subtitle_animation if subtitle_animation in SUBTITLE_ANIMATIONS else DEFAULT_SUBTITLE_ANIMATION
-    return color, position, asp, anim
+    hcolor = highlight_color if highlight_color and HEX_COLOR_RE.match(highlight_color) else DEFAULT_HIGHLIGHT_COLOR
+    return color, position, asp, anim, hcolor
 
 
 def _resolve_clip_option(payload_value, is_valid, existing: dict, existing_key: str, row: dict, row_key: str, default):
@@ -203,6 +206,7 @@ class RetrimPayload(BaseModel):
     subtitle_position: str | None = None
     aspect: str | None = None
     subtitle_animation: str | None = None
+    highlight_color: str | None = None
 
 
 class AddClipPayload(BaseModel):
@@ -217,6 +221,7 @@ class AddClipPayload(BaseModel):
     subtitle_position: str | None = None
     aspect: str | None = None
     subtitle_animation: str | None = None
+    highlight_color: str | None = None
 
 
 class TranslateClipPayload(BaseModel):
@@ -238,6 +243,7 @@ class UploadUrlPayload(BaseModel):
     subtitle_position: str | None = None
     aspect: str | None = None
     subtitle_animation: str | None = None
+    highlight_color: str | None = None
 
 
 class PasswordPayload(BaseModel):
@@ -814,6 +820,7 @@ def run_pipeline(
     subtitle_position: str = DEFAULT_SUBTITLE_POSITION,
     aspect: str = DEFAULT_ASPECT,
     subtitle_animation: str = DEFAULT_SUBTITLE_ANIMATION,
+    highlight_color: str = DEFAULT_HIGHLIGHT_COLOR,
 ):
     try:
         _set_job(job_id, status="transcribing")
@@ -847,7 +854,7 @@ def run_pipeline(
                 video_path, clip["start"], clip["end"], all_words, job_out_dir, name,
                 style=style, remove_fillers=remove_fillers,
                 subtitle_color=subtitle_color, position=subtitle_position, aspect=aspect,
-                animation=subtitle_animation,
+                animation=subtitle_animation, highlight_color=highlight_color,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
             subtitles_en_url = None
@@ -870,6 +877,7 @@ def run_pipeline(
                 "subtitle_position": subtitle_position,
                 "aspect": aspect,
                 "subtitle_animation": subtitle_animation,
+                "highlight_color": highlight_color,
                 "remove_fillers": remove_fillers,
             })
 
@@ -892,6 +900,7 @@ def _job_to_dict(row: dict) -> dict:
         "subtitle_position": row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION,
         "aspect": row.get("aspect") or DEFAULT_ASPECT,
         "subtitle_animation": row.get("subtitle_animation") or DEFAULT_SUBTITLE_ANIMATION,
+        "highlight_color": row.get("highlight_color") or DEFAULT_HIGHLIGHT_COLOR,
         "credit_cost": row.get("credit_cost") or 0,
         "uploaded_by": row.get("uploaded_by_email"),
         "created_at": row["created_at"],
@@ -911,6 +920,7 @@ def _start_processing_job(
     subtitle_position: str | None,
     aspect: str | None,
     subtitle_animation: str | None,
+    highlight_color: str | None,
     current_user: dict,
     background_tasks: BackgroundTasks,
 ) -> dict:
@@ -949,7 +959,9 @@ def _start_processing_job(
 
     # Altyazi rengi/konumu ve en-boy orani tum planlarda acik - sadece
     # klip sayisi/suresi ucretli plana ozel (yukarida ayrica kontrol edildi).
-    color, position, asp, anim = _validate_render_options(subtitle_color, subtitle_position, aspect, subtitle_animation)
+    color, position, asp, anim, hcolor = _validate_render_options(
+        subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
+    )
 
     # Kredi maliyeti: video suresi (ffprobe ile okunur) ve secilen klip
     # sayisina gore hesaplanir - bkz. app/services/credits.py.
@@ -972,19 +984,19 @@ def _start_processing_job(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, credit_cost, org_id)
-            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, credit_cost, org_id)
+            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job_id, current_user["id"], filename, style, int(remove_fillers),
-                color, position, asp, anim, cost, org["id"] if org else None,
+                color, position, asp, anim, hcolor, cost, org["id"] if org else None,
             ),
         )
         conn.commit()
 
     background_tasks.add_task(
         run_pipeline, job_id, str(video_path), style, remove_fillers, max_clips, dur_min, dur_max,
-        color, position, asp, anim,
+        color, position, asp, anim, hcolor,
     )
     return {"job_id": job_id, "credit_cost": cost}
 
@@ -1002,6 +1014,7 @@ async def upload_video(
     subtitle_position: str | None = Form(None),
     aspect: str | None = Form(None),
     subtitle_animation: str | None = Form(None),
+    highlight_color: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
     job_id = str(uuid.uuid4())
@@ -1011,7 +1024,8 @@ async def upload_video(
 
     return _start_processing_job(
         job_id, video_path, file.filename, style, remove_fillers, clip_count, min_duration, max_duration,
-        subtitle_color, subtitle_position, aspect, subtitle_animation, current_user, background_tasks,
+        subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
+        current_user, background_tasks,
     )
 
 
@@ -1034,13 +1048,20 @@ async def upload_video_from_url(
 
     style = payload.style if payload.style else DEFAULT_STYLE
     remove_fillers = payload.remove_fillers if payload.remove_fillers is not None else True
-    display_filename = f"{title}{video_path.suffix}"
+    # ONEMLI: filename olarak video_path.name'den job_id on ekini cikarip kullaniyoruz
+    # (title'dan degil) - cunku diger endpoint'ler (source, retrim, add-clip, indirme)
+    # orijinal videoyu UPLOAD_DIR / f"{job_id}_{row['filename']}" seklinde diskten
+    # yeniden buluyor. yt-dlp restrictfilenames=True ile guvenli/sanitize edilmis bir
+    # dosya adi kullaniyor (title'daki Turkce karakterler, parantezler vb. degisebiliyor),
+    # bu yuzden DB'ye title yerine diskteki GERCEK sanitize edilmis adi yazmazsak o
+    # endpoint'ler dosyayi bulamiyor (404) - kirpma editorunde video hic yuklenmiyordu.
+    display_filename = video_path.name[len(job_id) + 1:]
 
     return _start_processing_job(
         job_id, video_path, display_filename, style, remove_fillers, payload.clip_count,
         payload.min_duration, payload.max_duration, payload.subtitle_color,
         payload.subtitle_position, payload.aspect, payload.subtitle_animation,
-        current_user, background_tasks,
+        payload.highlight_color, current_user, background_tasks,
     )
 
 
@@ -1165,6 +1186,10 @@ async def retrim_clip(
         payload.subtitle_animation, lambda v: v in SUBTITLE_ANIMATIONS,
         existing_clip, "subtitle_animation", row, "subtitle_animation", DEFAULT_SUBTITLE_ANIMATION,
     )
+    hcolor = _resolve_clip_option(
+        payload.highlight_color, lambda v: bool(HEX_COLOR_RE.match(v)),
+        existing_clip, "highlight_color", row, "highlight_color", DEFAULT_HIGHLIGHT_COLOR,
+    )
     name = f"clip_{clip_index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
 
@@ -1173,6 +1198,7 @@ async def retrim_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
+            highlight_color=hcolor,
         )
         cover_path = make_cover(path, clips[clip_index].get("title", name), job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1198,6 +1224,7 @@ async def retrim_clip(
         "subtitle_position": position,
         "aspect": asp,
         "subtitle_animation": anim,
+        "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
     }
 
@@ -1290,6 +1317,9 @@ async def add_clip(
     anim = _resolve_clip_option(
         payload.subtitle_animation, lambda v: v in SUBTITLE_ANIMATIONS, {}, "subtitle_animation", row, "subtitle_animation", DEFAULT_SUBTITLE_ANIMATION,
     )
+    hcolor = _resolve_clip_option(
+        payload.highlight_color, lambda v: bool(HEX_COLOR_RE.match(v)), {}, "highlight_color", row, "highlight_color", DEFAULT_HIGHLIGHT_COLOR,
+    )
     index = len(clips)
     name = f"clip_{index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
@@ -1300,6 +1330,7 @@ async def add_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
+            highlight_color=hcolor,
         )
         cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1327,6 +1358,7 @@ async def add_clip(
         "subtitle_position": position,
         "aspect": asp,
         "subtitle_animation": anim,
+        "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
     }
     clips.append(new_clip)
@@ -1515,6 +1547,38 @@ async def subtitle_languages():
 @app.get("/api/caption-styles")
 async def caption_styles():
     return {key: preset["label"] for key, preset in STYLE_PRESETS.items()}
+
+
+@app.get("/api/caption-style-presets")
+async def caption_style_presets():
+    """caption-styles'in genisletilmis hali - profesyonel klip editorunun
+    altyazi onizlemesini (kelimeleri kac kelimelik gruplar halinde gostermesi
+    gerektigini) gercek render mantigiyla (STYLE_PRESETS[...]["chunk_size"])
+    birebir tutarli kurabilmesi icin chunk_size de donduruluyor."""
+    return {
+        key: {"label": preset["label"], "chunk_size": preset["chunk_size"]}
+        for key, preset in STYLE_PRESETS.items()
+    }
+
+
+@app.get("/api/jobs/{job_id}/words")
+async def job_words(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Bu isin kelime bazli transkriptini (baslangic/bitis zaman damgalariyla)
+    dondurur - profesyonel klip editorunde, kullanici videoyu oynatirken
+    henuz yakilmamis altyazinin canli bir onizlemesini gosterebilmek icin
+    kullanilir. Isin sahibi veya (is bir ekibe aitse) ekibin tum uyeleri
+    erisebilir."""
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+    row = dict(row)
+    words_json = row.get("words_json")
+    return {"words": json.loads(words_json) if words_json else []}
 
 
 @app.get("/api/render-options")

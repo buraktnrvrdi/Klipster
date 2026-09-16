@@ -130,6 +130,7 @@ def init_db():
             "ALTER TABLE jobs ADD COLUMN credit_cost INTEGER DEFAULT 0",
             "ALTER TABLE jobs ADD COLUMN org_id TEXT",
             "ALTER TABLE jobs ADD COLUMN subtitle_animation TEXT",
+            "ALTER TABLE jobs ADD COLUMN highlight_color TEXT",
         ):
             try:
                 conn.execute(stmt)
