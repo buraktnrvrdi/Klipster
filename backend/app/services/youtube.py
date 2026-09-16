@@ -2,14 +2,50 @@
 video indirme. Boylece kullanici bilgisayarindan dosya yuklemek yerine bir
 video linki yapistirarak da ayni klip uretim hattini calistirabilir - sanki
 bilgisayarindan yuklemis gibi (bkz. app/main.py _start_processing_job)."""
+import ipaddress
 import re
+import socket
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yt_dlp
 
 # Bariz bos/alakasiz girdileri erken elemek icin hizli bir on kontrol - yt-dlp
 # zaten desteklemedigi bir url'de kendi (daha az anlasilir) hatasini firlatir.
 URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+
+
+def _is_public_host(hostname: str) -> bool:
+    """Hostname'in cozumlendigi TUM IP'lerin genel (public) internet
+    adresi oldugunu dogrular - SSRF'e karsi (sunucunun iç agina,
+    localhost'a veya bulut metadata endpoint'lerine (169.254.169.254 gibi)
+    istek atilmasini engellemek icin). Herhangi bir adres private/loopback/
+    link-local/reserved ise False doner."""
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return False
+    if not infos:
+        return False
+    for family, _, _, _, sockaddr in infos:
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False
+        if (
+            ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        ):
+            return False
+    return True
+
+
+def _assert_safe_url(url: str) -> None:
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname or not _is_public_host(hostname):
+        raise VideoUrlError("Geçerli bir video linki gir (http:// veya https:// ile başlamalı)")
 
 # Cok uzun videolarin indirilip islenmesi hem depolama hem sure acisindan
 # makul degil - bu esigin uzerindeki videolar indirilmeden reddedilir.
@@ -25,8 +61,10 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     Dosya, mevcut yukleme dosyalarinin isimlendirme deseniyle (job_id on eki)
     tutarli olacak sekilde out_dir icine yazilir. Hata durumunda kullaniciya
     gosterilebilir bir mesajla VideoUrlError firlatir."""
-    if not url or not URL_RE.match(url.strip()):
+    url = url.strip()
+    if not url or not URL_RE.match(url):
         raise VideoUrlError("Geçerli bir video linki gir (http:// veya https:// ile başlamalı)")
+    _assert_safe_url(url)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")

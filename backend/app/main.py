@@ -97,6 +97,17 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 init_db()
 
 
+def _safe_filename(name: str) -> str:
+    """Kullanicidan gelen dosya adini diskte guvenle kullanilabilir hale
+    getirir - path traversal (../, mutlak yol, ayirici karakterler) ve
+    dosya sistemi icin sorunlu karakterleri temizler. Sonuc bos kalirsa
+    genel bir varsayilan isim doner."""
+    name = os.path.basename(name or "")
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    name = name.lstrip(".") or "video"
+    return name[-200:]
+
+
 def _recover_interrupted_jobs():
     """Sunucu (deploy/yeniden baslatma/cokme yuzunden) bir video islenirken
     kapanirsa, o is veritabaninda sonsuza kadar 'queued'/'transcribing'/...
@@ -1026,12 +1037,13 @@ async def upload_video(
     current_user: dict = Depends(get_current_user),
 ):
     job_id = str(uuid.uuid4())
-    video_path = UPLOAD_DIR / f"{job_id}_{file.filename}"
+    safe_filename = _safe_filename(file.filename)
+    video_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
     with open(video_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
     return _start_processing_job(
-        job_id, video_path, file.filename, style, remove_fillers, smart_crop, clip_count, min_duration, max_duration,
+        job_id, video_path, safe_filename, style, remove_fillers, smart_crop, clip_count, min_duration, max_duration,
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
         current_user, background_tasks,
     )
