@@ -76,11 +76,11 @@ function GirisForm() {
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
-        <Link href="/" className="flex items-center gap-2 w-fit">
-          <Logo className="h-14" />
+        <Link href="/" className="flex items-center justify-center">
+          <Logo className="h-24" />
         </Link>
 
-        <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
           <h1 className="text-2xl font-semibold font-display tracking-tight">Tekrar hoş geldin</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Hesabın yok mu?{" "}
