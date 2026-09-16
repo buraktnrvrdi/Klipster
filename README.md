@@ -6,6 +6,20 @@ Podcast, röportaj, canlı yayın veya ekran kaydı gibi uzun içerikleri; TikTo
 
 > Bu repo bir portföy/CV projesi olarak paylaşılmaktadır. Ürün ticarileştirme aşamasında olduğu için **private** tutulmaktadır.
 
+## Ekran görüntüleri
+
+<p>
+  <img src="docs/screenshots/landing.png" alt="Klipster ana sayfa" width="100%" />
+</p>
+
+| Video yükleme | Profesyonel klip editörü |
+|---|---|
+| ![Video yükleme ekranı](docs/screenshots/upload.png) | ![Profesyonel klip editörü](docs/screenshots/editor.png) |
+
+<p>
+  <img src="docs/screenshots/pricing.png" alt="Fiyatlandırma sayfası" width="100%" />
+</p>
+
 ---
 
 ## Ürün ne yapıyor

@@ -1,6 +1,7 @@
 node_modules/
 .next/
 venv/
+.venv/
 __pycache__/
 *.pyc
 backend/storage/
@@ -10,3 +11,4 @@ backend/storage/
 .env.local
 .DS_Store
 **/.DS_Store
+*.db
