@@ -6,6 +6,7 @@ import re
 import secrets
 import shutil
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,7 +18,7 @@ from dotenv import load_dotenv
 # SMTP bilgilerini hicbir zaman goremez (bu tam olarak yasanan hataydi).
 load_dotenv()
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -77,6 +78,11 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/
 # Sifre sifirlama linki bu sure sonra gecersiz olur.
 PASSWORD_RESET_TTL_MINUTES = 60
 
+# E-posta dogrulama linki bu sure sonra gecersiz olur - sifre sifirlamanin
+# aksine eskiden suresiz gecerliydi, eski/sizmis bir linkin yillar sonra da
+# kullanilabilmesini onlemek icin sinirlandirildi.
+EMAIL_VERIFICATION_TTL_HOURS = 48
+
 # CORS: API'ye sadece bilinen frontend adreslerinden istek atilabilir - "*"
 # (herkese acik) production'da guvenlik acigi olusturur, herhangi bir site
 # kullanicinin tarayicisi uzerinden bu API'ye istek atabilirdi. Birden fazla
@@ -131,12 +137,44 @@ def _recover_interrupted_jobs():
 
 _recover_interrupted_jobs()
 
+
+class _RateLimiter:
+    """Basit, bellek-ici (in-memory) sabit-pencereli rate limiter. Tek process
+    deploy icin orantili bir onlem - brute-force/enumeration denemelerini
+    yavaslatir. Coklu worker/process'te paylasilmaz (her worker kendi
+    sayacini tutar); gercek dagitik limitleme icin Redis gerekir ama bu
+    projenin olcegi icin gereksiz bir karmasiklik olur."""
+
+    def __init__(self):
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def check(self, key: str, limit: int, window_seconds: float):
+        now = time.monotonic()
+        with self._lock:
+            hits = [t for t in self._hits.get(key, []) if now - t < window_seconds]
+            if len(hits) >= limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Çok fazla deneme yapıldı - lütfen biraz sonra tekrar dene",
+                )
+            hits.append(now)
+            self._hits[key] = hits
+
+
+_rate_limiter = _RateLimiter()
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
 app = FastAPI(title="Content Repurposer API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
     allow_credentials=True,
 )
 app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
@@ -369,7 +407,8 @@ def _credits_used_this_month(current_user: dict, org: dict | None) -> int:
 
 
 @app.post("/api/auth/register")
-async def register(payload: AuthPayload):
+async def register(payload: AuthPayload, request: Request):
+    _rate_limiter.check(f"register:{_client_ip(request)}", limit=10, window_seconds=3600)
     email = payload.email.strip().lower()
     if not EMAIL_RE.match(email):
         raise HTTPException(status_code=400, detail="Geçerli bir e-posta gir")
@@ -399,8 +438,10 @@ async def register(payload: AuthPayload):
 
 
 @app.post("/api/auth/login")
-async def login(payload: AuthPayload):
+async def login(payload: AuthPayload, request: Request):
     email = payload.email.strip().lower()
+    _rate_limiter.check(f"login:{_client_ip(request)}", limit=10, window_seconds=300)
+    _rate_limiter.check(f"login:{email}", limit=10, window_seconds=300)
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     if not row or not verify_password(payload.password, row["password_hash"]):
@@ -493,10 +534,20 @@ async def resend_verification(current_user: dict = Depends(get_current_user)):
 async def verify_email(payload: VerifyEmailPayload):
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT user_id FROM email_verifications WHERE token = ?", (payload.token,)
+            "SELECT user_id, created_at FROM email_verifications WHERE token = ?", (payload.token,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Doğrulama linki geçersiz veya süresi dolmuş")
+
+        created_at = datetime.fromisoformat(row["created_at"]).replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - created_at > timedelta(hours=EMAIL_VERIFICATION_TTL_HOURS):
+            conn.execute("DELETE FROM email_verifications WHERE token = ?", (payload.token,))
+            conn.commit()
+            raise HTTPException(
+                status_code=410,
+                detail="Doğrulama linkinin süresi dolmuş - yeni bir link talep et",
+            )
+
         user_id = row["user_id"]
         conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
         conn.execute("DELETE FROM email_verifications WHERE token = ?", (payload.token,))
@@ -510,11 +561,12 @@ async def verify_email(payload: VerifyEmailPayload):
 
 
 @app.post("/api/auth/resend-verification-public")
-async def resend_verification_public(payload: ForgotPasswordPayload):
+async def resend_verification_public(payload: ForgotPasswordPayload, request: Request):
     """Henuz giris yapamayan (dolayisiyla authed resend-verification'i
     cagiramayan) kullanicilar icin - forgot-password ile ayni enumeration
     onlemini kullanir: e-posta kayitli olsun olmasin ayni cevap doner."""
     email = payload.email.strip().lower()
+    _rate_limiter.check(f"resend-verification:{_client_ip(request)}", limit=5, window_seconds=3600)
     with get_conn() as conn:
         row = conn.execute(
             "SELECT id, email_verified FROM users WHERE email = ?", (email,)
@@ -529,10 +581,11 @@ async def resend_verification_public(payload: ForgotPasswordPayload):
 
 
 @app.post("/api/auth/forgot-password")
-async def forgot_password(payload: ForgotPasswordPayload):
+async def forgot_password(payload: ForgotPasswordPayload, request: Request):
     """Kayitli e-posta olsun olmasin ayni cevabi doner - boylece bir e-postanin
     sistemde kayitli olup olmadigi disaridan anlasilamaz (enumeration onlemi)."""
     email = payload.email.strip().lower()
+    _rate_limiter.check(f"forgot-password:{_client_ip(request)}", limit=5, window_seconds=3600)
     with get_conn() as conn:
         row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if row:
@@ -557,7 +610,8 @@ async def forgot_password(payload: ForgotPasswordPayload):
 
 
 @app.post("/api/auth/reset-password")
-async def reset_password(payload: ResetPasswordPayload):
+async def reset_password(payload: ResetPasswordPayload, request: Request):
+    _rate_limiter.check(f"reset-password:{_client_ip(request)}", limit=10, window_seconds=3600)
     if len(payload.new_password) < 6:
         raise HTTPException(status_code=400, detail="Yeni şifre en az 6 karakter olmalı")
 
@@ -819,7 +873,8 @@ def _generate_english_subtitles(
         srt_path = job_out_dir / f"{name}_en.srt"
         write_srt(chunks, srt_path)
         return f"/files/{job_id}/{srt_path.name}"
-    except Exception:
+    except Exception as e:
+        print(f"[ingilizce altyazi uretimi basarisiz] job={job_id} name={name}: {e}")
         return None
 
 
