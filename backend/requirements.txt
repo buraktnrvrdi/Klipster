@@ -11,3 +11,4 @@ Pillow>=10.4.0
 bcrypt>=4.1.0
 yt-dlp>=2024.8.6
 opencv-python-headless==4.10.0.84
+boto3>=1.35.0

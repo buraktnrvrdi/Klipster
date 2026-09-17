@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -21,7 +22,7 @@ load_dotenv()
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -42,6 +43,7 @@ from app.services.credits import (
     compute_credit_cost,
 )
 from app.services.email import send_email
+from app.services import storage
 from app.services.highlights import (
     find_highlights,
     generate_social_caption,
@@ -114,6 +116,32 @@ def _safe_filename(name: str) -> str:
     name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
     name = name.lstrip(".") or "video"
     return name[-200:]
+
+
+def _upload_output(job_id: str, local_path: Path) -> str:
+    """Upload a rendered output file to R2 (if enabled), delete local copy, return URL.
+    Falls back to /files/ static path when R2 is not configured."""
+    if not storage.is_enabled():
+        return f"/files/{job_id}/{local_path.name}"
+    key = f"outputs/{job_id}/{local_path.name}"
+    url = storage.upload(local_path, key)
+    local_path.unlink(missing_ok=True)
+    return url
+
+
+def _ensure_original_local(job_id: str, filename: str) -> tuple[Path, bool]:
+    """Return (path, is_temp). Downloads from R2 to a temp dir if the local
+    copy no longer exists (it was archived after the initial pipeline run).
+    Caller must delete the temp file when is_temp=True."""
+    local = UPLOAD_DIR / f"{job_id}_{filename}"
+    if local.exists():
+        return local, False
+    if storage.is_enabled():
+        key = f"uploads/{job_id}/{filename}"
+        tmp = Path(tempfile.mkdtemp()) / f"{job_id}_{filename}"
+        storage.download(key, tmp)
+        return tmp, True
+    return local, False  # caller will catch missing file
 
 
 def _recover_interrupted_jobs():
@@ -424,21 +452,16 @@ async def register(payload: AuthPayload, request: Request):
         if existing:
             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
         cur = conn.execute(
-            "INSERT INTO users (email, password_hash, plan) VALUES (?, ?, 'ucretsiz')",
+            "INSERT INTO users (email, password_hash, plan, email_verified) VALUES (?, ?, 'ucretsiz', 1)",
             (email, hash_password(payload.password)),
         )
         conn.commit()
         user_id = cur.lastrowid
 
-    # Kayit olur olmaz oturum acilmiyor - hesap ancak e-posta dogrulandiktan
-    # sonra kullanilabilir hale gelir (bkz. verify_email, orada oturum acilir).
-    _send_verification_email(user_id, email)
-
-    return {
-        "ok": True,
-        "email": email,
-        "message": "Hesabını doğrulamak için e-postana gönderdiğimiz bağlantıya tıkla",
-    }
+    token = create_session(user_id)
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return {"ok": True, "email": email, "token": token, "user": _user_public(dict(row))}
 
 
 @app.post("/api/auth/login")
@@ -450,11 +473,13 @@ async def login(payload: AuthPayload, request: Request):
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     if not row or not verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
-    if not row["email_verified"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Hesabını henüz doğrulamadın - e-postana gönderdiğimiz bağlantıya tıklaman gerekiyor",
-        )
+    # TODO: e-posta dogrulama gecici olarak devre disi - SMTP Railway'de calismiyor
+    # Resend.com gibi bir servis entegre edilince bu blok tekrar aktif edilmeli
+    # if not row["email_verified"]:
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail="Hesabını henüz doğrulamadın - e-postana gönderdiğimiz bağlantıya tıklaman gerekiyor",
+    #     )
 
     token = create_session(row["id"])
     return {"token": token, "user": _user_public(dict(row))}
@@ -667,6 +692,9 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
         shutil.rmtree(OUTPUT_DIR / job_id, ignore_errors=True)
         for f in UPLOAD_DIR.glob(f"{job_id}_*"):
             f.unlink(missing_ok=True)
+        if storage.is_enabled():
+            storage.delete_prefix(f"uploads/{job_id}/")
+            storage.delete_prefix(f"outputs/{job_id}/")
 
     with get_conn() as conn:
         # sessions/jobs, users tablosundaki ON DELETE CASCADE sayesinde
@@ -882,7 +910,7 @@ def _generate_english_subtitles(
             c["text"] = t
         srt_path = job_out_dir / f"{name}_en.srt"
         write_srt(chunks, srt_path)
-        return f"/files/{job_id}/{srt_path.name}"
+        return _upload_output(job_id, srt_path)
     except Exception as e:
         print(f"[ingilizce altyazi uretimi basarisiz] job={job_id} name={name}: {e}")
         return None
@@ -971,6 +999,8 @@ def _run_pipeline_locked(
                 animation=subtitle_animation, highlight_color=highlight_color,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
+            clip_url = _upload_output(job_id, path)
+            cover_url = _upload_output(job_id, cover_path) if cover_path else None
             subtitles_en_url = None
             if detected_language != "en":
                 subtitles_en_url = _generate_english_subtitles(
@@ -983,8 +1013,8 @@ def _run_pipeline_locked(
                 "score": clip.get("score"),
                 "start": clip["start"],
                 "end": clip["end"],
-                "url": f"/files/{job_id}/{path.name}",
-                "cover_url": f"/files/{job_id}/{cover_path.name}" if cover_path else None,
+                "url": clip_url,
+                "cover_url": cover_url,
                 "subtitles_en_url": subtitles_en_url,
                 "style": style,
                 "subtitle_color": subtitle_color,
@@ -998,6 +1028,12 @@ def _run_pipeline_locked(
             })
 
         _set_job(job_id, status="done", clips_json=json.dumps(results))
+
+        # Archive the original video to R2 and free local disk space.
+        if storage.is_enabled():
+            orig = Path(video_path)
+            storage.upload(orig, f"uploads/{job_id}/{orig.name[len(job_id)+1:]}")
+            orig.unlink(missing_ok=True)
     except Exception as e:
         # 'error' durumundaki isler _credits_used_this_month'da sayilmadigi
         # icin kredi zaten fiilen iade edilmis oluyor - ama kullaniciya bu
@@ -1006,13 +1042,26 @@ def _run_pipeline_locked(
         _set_job(job_id, status="error", error=f"{e} (Bu işlem için kredin harcanmadı.)")
 
 
+def _resolve_clip_urls(clip: dict) -> dict:
+    """Replace stored storage keys with usable (signed) URLs in a clip dict."""
+    resolved = {**clip}
+    for field in ("url", "cover_url", "subtitles_en_url"):
+        resolved[field] = storage.resolve_url(clip.get(field))
+    resolved["translations"] = [
+        {**t, "url": storage.resolve_url(t.get("url"))}
+        for t in clip.get("translations", [])
+    ]
+    return resolved
+
+
 def _job_to_dict(row: dict) -> dict:
+    raw_clips = json.loads(row["clips_json"]) if row["clips_json"] else []
     return {
         "job_id": row["id"],
         "filename": row["filename"],
         "status": row["status"],
         "error": row["error"],
-        "clips": json.loads(row["clips_json"]) if row["clips_json"] else [],
+        "clips": [_resolve_clip_urls(c) for c in raw_clips],
         "style": row["style"],
         "remove_fillers": bool(row["remove_fillers"]),
         "smart_crop": bool(row["smart_crop"]) if row["smart_crop"] is not None else True,
@@ -1249,6 +1298,9 @@ async def job_source(job_id: str, current_user: dict = Depends(get_current_user_
 
     video_path = UPLOAD_DIR / f"{job_id}_{row['filename']}"
     if not video_path.exists():
+        if storage.is_enabled():
+            r2_url = storage.public_url(f"uploads/{job_id}/{row['filename']}")
+            return RedirectResponse(url=r2_url, status_code=302)
         raise HTTPException(status_code=404, detail="Orijinal video dosyası bulunamadı")
 
     return FileResponse(str(video_path), media_type="video/mp4")
@@ -1289,12 +1341,14 @@ async def retrim_clip(
         )
     all_words = json.loads(words_json)
 
-    video_path = UPLOAD_DIR / f"{job_id}_{row['filename']}"
+    video_path, _is_temp_retrim = _ensure_original_local(job_id, row["filename"])
     if not video_path.exists():
         raise HTTPException(status_code=409, detail="Orijinal video dosyası bulunamadı")
 
     clips = json.loads(row["clips_json"]) if row["clips_json"] else []
     if clip_index < 0 or clip_index >= len(clips):
+        if _is_temp_retrim:
+            shutil.rmtree(video_path.parent, ignore_errors=True)
         raise HTTPException(status_code=404, detail="Klip bulunamadı")
 
     existing_clip = clips[clip_index]
@@ -1348,6 +1402,12 @@ async def retrim_clip(
         cover_path = make_cover(path, clips[clip_index].get("title", name), job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Yeniden oluşturma başarısız: {e}")
+    finally:
+        if _is_temp_retrim:
+            shutil.rmtree(video_path.parent, ignore_errors=True)
+
+    clip_url = _upload_output(job_id, path)
+    cover_url = _upload_output(job_id, cover_path) if cover_path else None
 
     subtitles_en_url = None
     if row.get("language") != "en":
@@ -1356,13 +1416,12 @@ async def retrim_clip(
             job_id, job_out_dir, name,
         )
 
-    cache_bust = uuid.uuid4().hex[:8]
     clips[clip_index] = {
         **clips[clip_index],
         "start": payload.start,
         "end": payload.end,
-        "url": f"/files/{job_id}/{path.name}?v={cache_bust}",
-        "cover_url": f"/files/{job_id}/{cover_path.name}?v={cache_bust}" if cover_path else None,
+        "url": clip_url,
+        "cover_url": cover_url,
         "subtitles_en_url": subtitles_en_url,
         "style": style,
         "subtitle_color": color,
@@ -1379,7 +1438,7 @@ async def retrim_clip(
         conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
         conn.commit()
 
-    return clips[clip_index]
+    return _resolve_clip_urls(clips[clip_index])
 
 
 @app.post("/api/jobs/{job_id}/clips/add")
@@ -1418,12 +1477,14 @@ async def add_clip(
         )
     all_words = json.loads(words_json)
 
-    video_path = UPLOAD_DIR / f"{job_id}_{row['filename']}"
+    video_path, _is_temp_addclip = _ensure_original_local(job_id, row["filename"])
     if not video_path.exists():
         raise HTTPException(status_code=409, detail="Orijinal video dosyası bulunamadı")
 
     clips = json.loads(row["clips_json"]) if row["clips_json"] else []
     if len(clips) >= MAX_CLIPS_PER_JOB:
+        if _is_temp_addclip:
+            shutil.rmtree(video_path.parent, ignore_errors=True)
         raise HTTPException(
             status_code=400,
             detail=f"Bir video için en fazla {MAX_CLIPS_PER_JOB} klip oluşturulabilir",
@@ -1490,6 +1551,12 @@ async def add_clip(
         cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Klip oluşturulamadı: {e}")
+    finally:
+        if _is_temp_addclip:
+            shutil.rmtree(video_path.parent, ignore_errors=True)
+
+    clip_url = _upload_output(job_id, path)
+    cover_url = _upload_output(job_id, cover_path) if cover_path else None
 
     subtitles_en_url = None
     if row.get("language") != "en":
@@ -1504,8 +1571,8 @@ async def add_clip(
         "score": None,
         "start": payload.start,
         "end": payload.end,
-        "url": f"/files/{job_id}/{path.name}",
-        "cover_url": f"/files/{job_id}/{cover_path.name}" if cover_path else None,
+        "url": clip_url,
+        "cover_url": cover_url,
         "subtitles_en_url": subtitles_en_url,
         "manual": True,
         "style": style,
@@ -1527,7 +1594,7 @@ async def add_clip(
         )
         conn.commit()
 
-    return {"clip": new_clip, "clips": clips, "added_cost": added_cost}
+    return {"clip": _resolve_clip_urls(new_clip), "clips": [_resolve_clip_urls(c) for c in clips], "added_cost": added_cost}
 
 
 @app.delete("/api/jobs/{job_id}/clips/{clip_index}")
@@ -1557,9 +1624,15 @@ async def delete_clip(
         raise HTTPException(status_code=400, detail="Sadece elle eklenen klipler silinebilir")
 
     job_out_dir = (OUTPUT_DIR / job_id).resolve()
-    for key in ("url", "cover_url", "subtitles_en_url"):
-        url = clip.get(key)
-        if url:
+    for field in ("url", "cover_url", "subtitles_en_url"):
+        url = clip.get(field)
+        if not url:
+            continue
+        if storage.is_enabled():
+            r2_key = storage.key_from_url(url)
+            if r2_key:
+                storage.delete(r2_key)
+        else:
             fname = _safe_filename(url.split("/")[-1].split("?")[0])
             target = (job_out_dir / fname).resolve()
             if target.parent == job_out_dir:
@@ -1634,8 +1707,7 @@ async def translate_clip(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Çeviri başarısız: {e}")
 
-    cache_bust = uuid.uuid4().hex[:8]
-    url = f"/files/{job_id}/{srt_path.name}?v={cache_bust}"
+    url = _upload_output(job_id, srt_path)
     translations = [t for t in clip.get("translations", []) if t.get("language") != payload.language]
     translations.append({"language": payload.language, "label": lang_label, "url": url})
     clips[clip_index] = {**clip, "translations": translations}
@@ -1644,7 +1716,7 @@ async def translate_clip(
         conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
         conn.commit()
 
-    return clips[clip_index]
+    return _resolve_clip_urls(clips[clip_index])
 
 
 @app.post("/api/jobs/{job_id}/clips/{clip_index}/caption")
@@ -1695,7 +1767,7 @@ async def generate_clip_caption(
         conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
         conn.commit()
 
-    return clips[clip_index]
+    return _resolve_clip_urls(clips[clip_index])
 
 
 @app.get("/api/subtitle-languages")
