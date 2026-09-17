@@ -254,6 +254,7 @@ class RetrimPayload(BaseModel):
     style: str | None = None
     remove_fillers: bool | None = None
     smart_crop: bool | None = None
+    auto_zoom: bool | None = None
     subtitle_color: str | None = None
     subtitle_position: str | None = None
     aspect: str | None = None
@@ -270,6 +271,7 @@ class AddClipPayload(BaseModel):
     style: str | None = None
     remove_fillers: bool | None = None
     smart_crop: bool | None = None
+    auto_zoom: bool | None = None
     subtitle_color: str | None = None
     subtitle_position: str | None = None
     aspect: str | None = None
@@ -290,6 +292,7 @@ class UploadUrlPayload(BaseModel):
     style: str | None = None
     remove_fillers: bool | None = None
     smart_crop: bool | None = None
+    auto_zoom: bool | None = None
     clip_count: int | None = None
     min_duration: float | None = None
     max_duration: float | None = None
@@ -900,6 +903,7 @@ def run_pipeline(
     style: str,
     remove_fillers: bool,
     smart_crop: bool = True,
+    auto_zoom: bool = True,
     max_clips: int = 5,
     min_duration: float = 20.0,
     max_duration: float = 75.0,
@@ -911,7 +915,7 @@ def run_pipeline(
 ):
     with _pipeline_semaphore:
         _run_pipeline_locked(
-            job_id, video_path, style, remove_fillers, smart_crop, max_clips, min_duration, max_duration,
+            job_id, video_path, style, remove_fillers, smart_crop, auto_zoom, max_clips, min_duration, max_duration,
             subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
         )
 
@@ -922,6 +926,7 @@ def _run_pipeline_locked(
     style: str,
     remove_fillers: bool,
     smart_crop: bool,
+    auto_zoom: bool,
     max_clips: float,
     min_duration: float,
     max_duration: float,
@@ -961,7 +966,7 @@ def _run_pipeline_locked(
             title = clip.get("title", name)
             path = make_vertical_clip(
                 video_path, clip["start"], clip["end"], all_words, job_out_dir, name,
-                style=style, remove_fillers=remove_fillers, smart_crop=smart_crop,
+                style=style, remove_fillers=remove_fillers, smart_crop=smart_crop, auto_zoom=auto_zoom,
                 subtitle_color=subtitle_color, position=subtitle_position, aspect=aspect,
                 animation=subtitle_animation, highlight_color=highlight_color,
             )
@@ -989,6 +994,7 @@ def _run_pipeline_locked(
                 "highlight_color": highlight_color,
                 "remove_fillers": remove_fillers,
                 "smart_crop": smart_crop,
+                "auto_zoom": auto_zoom,
             })
 
         _set_job(job_id, status="done", clips_json=json.dumps(results))
@@ -1010,6 +1016,7 @@ def _job_to_dict(row: dict) -> dict:
         "style": row["style"],
         "remove_fillers": bool(row["remove_fillers"]),
         "smart_crop": bool(row["smart_crop"]) if row["smart_crop"] is not None else True,
+        "auto_zoom": bool(row["auto_zoom"]) if row["auto_zoom"] is not None else True,
         "language": row.get("language"),
         "subtitle_color": row.get("subtitle_color") or DEFAULT_SUBTITLE_COLOR,
         "subtitle_position": row.get("subtitle_position") or DEFAULT_SUBTITLE_POSITION,
@@ -1029,6 +1036,7 @@ def _start_processing_job(
     style: str,
     remove_fillers: bool,
     smart_crop: bool,
+    auto_zoom: bool,
     clip_count: int | None,
     min_duration: float | None,
     max_duration: float | None,
@@ -1100,18 +1108,18 @@ def _start_processing_job(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, smart_crop, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, credit_cost, org_id)
-            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, smart_crop, auto_zoom, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, credit_cost, org_id)
+            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                job_id, current_user["id"], filename, style, int(remove_fillers), int(smart_crop),
+                job_id, current_user["id"], filename, style, int(remove_fillers), int(smart_crop), int(auto_zoom),
                 color, position, asp, anim, hcolor, cost, org["id"] if org else None,
             ),
         )
         conn.commit()
 
     background_tasks.add_task(
-        run_pipeline, job_id, str(video_path), style, remove_fillers, smart_crop, max_clips, dur_min, dur_max,
+        run_pipeline, job_id, str(video_path), style, remove_fillers, smart_crop, auto_zoom, max_clips, dur_min, dur_max,
         color, position, asp, anim, hcolor,
     )
     return {"job_id": job_id, "credit_cost": cost}
@@ -1124,6 +1132,7 @@ async def upload_video(
     style: str = Form(DEFAULT_STYLE),
     remove_fillers: bool = Form(True),
     smart_crop: bool = Form(True),
+    auto_zoom: bool = Form(True),
     clip_count: int | None = Form(None),
     min_duration: float | None = Form(None),
     max_duration: float | None = Form(None),
@@ -1144,7 +1153,7 @@ async def upload_video(
         shutil.copyfileobj(file.file, f)
 
     return _start_processing_job(
-        job_id, video_path, safe_filename, style, remove_fillers, smart_crop, clip_count, min_duration, max_duration,
+        job_id, video_path, safe_filename, style, remove_fillers, smart_crop, auto_zoom, clip_count, min_duration, max_duration,
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
         current_user, background_tasks,
     )
@@ -1173,6 +1182,7 @@ async def upload_video_from_url(
     style = payload.style if payload.style else DEFAULT_STYLE
     remove_fillers = payload.remove_fillers if payload.remove_fillers is not None else True
     smart_crop = payload.smart_crop if payload.smart_crop is not None else True
+    auto_zoom = payload.auto_zoom if payload.auto_zoom is not None else True
     # ONEMLI: filename olarak video_path.name'den job_id on ekini cikarip kullaniyoruz
     # (title'dan degil) - cunku diger endpoint'ler (source, retrim, add-clip, indirme)
     # orijinal videoyu UPLOAD_DIR / f"{job_id}_{row['filename']}" seklinde diskten
@@ -1183,7 +1193,7 @@ async def upload_video_from_url(
     display_filename = video_path.name[len(job_id) + 1:]
 
     return _start_processing_job(
-        job_id, video_path, display_filename, style, remove_fillers, smart_crop, payload.clip_count,
+        job_id, video_path, display_filename, style, remove_fillers, smart_crop, auto_zoom, payload.clip_count,
         payload.min_duration, payload.max_duration, payload.subtitle_color,
         payload.subtitle_position, payload.aspect, payload.subtitle_animation,
         payload.highlight_color, current_user, background_tasks,
@@ -1301,6 +1311,11 @@ async def retrim_clip(
         else existing_clip["smart_crop"] if "smart_crop" in existing_clip
         else bool(row["smart_crop"]) if row["smart_crop"] is not None else True
     )
+    auto_zoom = (
+        payload.auto_zoom if payload.auto_zoom is not None
+        else existing_clip["auto_zoom"] if "auto_zoom" in existing_clip
+        else bool(row["auto_zoom"]) if row["auto_zoom"] is not None else True
+    )
     color = _resolve_clip_option(
         payload.subtitle_color, lambda v: bool(HEX_COLOR_RE.match(v)),
         existing_clip, "subtitle_color", row, "subtitle_color", DEFAULT_SUBTITLE_COLOR,
@@ -1326,7 +1341,7 @@ async def retrim_clip(
     try:
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
-            style=style, remove_fillers=remove_fillers, smart_crop=smart_crop,
+            style=style, remove_fillers=remove_fillers, smart_crop=smart_crop, auto_zoom=auto_zoom,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
         )
@@ -1357,6 +1372,7 @@ async def retrim_clip(
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
         "smart_crop": smart_crop,
+        "auto_zoom": auto_zoom,
     }
 
     with get_conn() as conn:
@@ -1440,6 +1456,10 @@ async def add_clip(
         payload.smart_crop if payload.smart_crop is not None
         else bool(row["smart_crop"]) if row["smart_crop"] is not None else True
     )
+    auto_zoom = (
+        payload.auto_zoom if payload.auto_zoom is not None
+        else bool(row["auto_zoom"]) if row["auto_zoom"] is not None else True
+    )
     color = _resolve_clip_option(
         payload.subtitle_color, lambda v: bool(HEX_COLOR_RE.match(v)), {}, "subtitle_color", row, "subtitle_color", DEFAULT_SUBTITLE_COLOR,
     )
@@ -1463,7 +1483,7 @@ async def add_clip(
     try:
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
-            style=style, remove_fillers=remove_fillers, smart_crop=smart_crop,
+            style=style, remove_fillers=remove_fillers, smart_crop=smart_crop, auto_zoom=auto_zoom,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
         )
@@ -1496,6 +1516,7 @@ async def add_clip(
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
         "smart_crop": smart_crop,
+        "auto_zoom": auto_zoom,
     }
     clips.append(new_clip)
 

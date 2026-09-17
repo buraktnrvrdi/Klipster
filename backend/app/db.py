@@ -65,6 +65,7 @@ def init_db():
                 style TEXT,
                 remove_fillers INTEGER DEFAULT 1,
                 smart_crop INTEGER DEFAULT 1,
+                auto_zoom INTEGER DEFAULT 1,
                 words_json TEXT,
                 language TEXT,
                 subtitle_color TEXT,
@@ -136,6 +137,7 @@ def init_db():
             "ALTER TABLE jobs ADD COLUMN subtitle_animation TEXT",
             "ALTER TABLE jobs ADD COLUMN highlight_color TEXT",
             "ALTER TABLE jobs ADD COLUMN smart_crop INTEGER DEFAULT 1",
+            "ALTER TABLE jobs ADD COLUMN auto_zoom INTEGER DEFAULT 1",
         ):
             try:
                 conn.execute(stmt)
