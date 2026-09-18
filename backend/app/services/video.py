@@ -714,6 +714,9 @@ def _build_smart_crop_x_expr(keyframes: list[tuple[float, float]]) -> str:
 # altyazi grubu (chunk) degistikce kisa bir zoom-in "vurgu" yapip yumusakca
 # eski olceğine geri doner (Submagic/CapCut gibi araclarda yaygin bir efekt).
 _FONT_CANDIDATES = [
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
