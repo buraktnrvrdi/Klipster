@@ -46,22 +46,27 @@ def _transcribe_groq(video_path: str):
         except Exception:
             pass
 
-    # Kelime listesini segment başlangıç/bitiş zamanlarına göre grupla
-    raw_words = {w.start: {"start": w.start, "end": w.end, "word": w.word}
-                 for w in (response.words or [])}
-    all_words_list = sorted(raw_words.values(), key=lambda w: w["start"])
+    def _w(w):
+        return w if isinstance(w, dict) else vars(w)
 
+    all_words_list = sorted(
+        [{"start": _w(w)["start"], "end": _w(w)["end"], "word": _w(w)["word"]}
+         for w in (response.words or [])],
+        key=lambda x: x["start"]
+    )
+
+    raw_segments = response.segments or []
     segments = []
-    for seg in (response.segments or []):
-        seg_words = [w for w in all_words_list if w["start"] >= seg.start - 0.05 and w["end"] <= seg.end + 0.05]
+    for seg in raw_segments:
+        s = _w(seg)
+        seg_words = [w for w in all_words_list if w["start"] >= s["start"] - 0.05 and w["end"] <= s["end"] + 0.05]
         segments.append({
-            "start": seg.start,
-            "end": seg.end,
-            "text": seg.text.strip(),
+            "start": s["start"],
+            "end": s["end"],
+            "text": s["text"].strip(),
             "words": seg_words,
         })
 
-    # Groq bazen segment dönmeyebilir — fallback olarak tek segment
     if not segments and all_words_list:
         segments.append({
             "start": all_words_list[0]["start"],
