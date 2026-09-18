@@ -1829,3 +1829,17 @@ async def render_options():
 @app.get("/api/health")
 async def health():
     return {"ok": True}
+
+
+@app.post("/api/admin/reset-credits")
+async def admin_reset_credits(email: str, secret: str):
+    admin_secret = os.environ.get("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Yetkisiz")
+    with _get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET credits_used = 0 WHERE email = %s", (email,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        conn.commit()
+    return {"ok": True, "message": f"{email} kredisi sıfırlandı"}
