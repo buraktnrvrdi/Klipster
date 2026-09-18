@@ -107,7 +107,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     except Exception as e:
         raise VideoUrlError(f"Video indirilemedi: {e}")
 
-    candidates = sorted(out_dir.glob(f"{job_id}_*"))
+    candidates = sorted(p for p in out_dir.glob(f"{job_id}_*") if ".part" not in p.name)
     if not candidates:
         raise VideoUrlError("Video indirildi ama dosya bulunamadı")
     return candidates[0], title
