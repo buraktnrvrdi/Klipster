@@ -713,6 +713,13 @@ def _build_smart_crop_x_expr(keyframes: list[tuple[float, float]]) -> str:
 # Otomatik yakinlastirma (auto-zoom / "punch-in") icin varsayilan ayarlar -
 # altyazi grubu (chunk) degistikce kisa bir zoom-in "vurgu" yapip yumusakca
 # eski olceğine geri doner (Submagic/CapCut gibi araclarda yaygin bir efekt).
+_FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+]
+
 AUTO_ZOOM_AMOUNT = 0.14  # tepe noktasinda ekstra buyutme orani (%14)
 AUTO_ZOOM_DECAY_SEC = 0.45  # tepeden 1.0 olceğine donme suresi (saniye)
 AUTO_ZOOM_MIN_GAP_SEC = 1.3  # iki vurgu arasinda olmasi gereken en az sure - surekli/rahatsiz edici zoom'u onler
