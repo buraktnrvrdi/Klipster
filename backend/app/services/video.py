@@ -40,7 +40,7 @@ STYLE_PRESETS = {
         "chunk_size": 4,
         "style_line": (
             "Style: Default,Arial,64,&H00FFFFFF,&H00000000,&H00000000,"
-            "-1,0,3,4,0,2,60,60,140,1"
+            "-1,0,1,4,0,2,60,60,140,1"
         ),
     },
     "vurgu": {
@@ -459,8 +459,22 @@ def generate_ass(
             if not text:
                 continue
             lines.append(f"Dialogue: 0,{_format_ass_time(start)},{_format_ass_time(end)},Default,,0,0,0,,{text}")
+    # Kelimeler arası boşluk artır: her dialogue satırının text kısmına \fsp3 ekle
+    spaced_lines = []
+    for line in lines:
+        if line.startswith("Dialogue:"):
+            parts = line.split(",,", 1)
+            if len(parts) == 2:
+                text_part = parts[1]
+                if text_part.startswith("{"):
+                    # Mevcut override bloğuna fsp ekle
+                    text_part = text_part.replace("{", "{\\fsp3", 1)
+                else:
+                    text_part = "{\\fsp3}" + text_part
+                line = parts[0] + ",," + text_part
+        spaced_lines.append(line)
     header = _ass_header(style, subtitle_color=subtitle_color, position=position, aspect=aspect)
-    ass_path.write_text(header + "\n".join(lines), encoding="utf-8")
+    ass_path.write_text(header + "\n".join(spaced_lines), encoding="utf-8")
 
 
 def chunk_words(words: list, style: str = DEFAULT_STYLE) -> list[dict]:
@@ -928,7 +942,8 @@ def make_cover(video_path: Path, title: str, out_path: Path, capture_time: float
         "-frames:v", "1", "-q:v", "2", str(tmp_frame),
     ], capture_output=True, text=True)
     if result.returncode != 0 or not tmp_frame.exists():
-        # kare cikaramadiysak sessizce vazgec, kapak olmadan devam
+        import logging
+        logging.warning(f"make_cover: kare alinamadi ({video_path}): {result.stderr[-300:]}")
         return None
 
     img = Image.open(tmp_frame).convert("RGBA")
