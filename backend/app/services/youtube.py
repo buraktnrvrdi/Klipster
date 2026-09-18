@@ -78,35 +78,55 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         raise VideoUrlError("Sunucuda şu an yeterli depolama alanı yok - lütfen daha sonra tekrar dene")
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")
 
-    ydl_opts = {
-        "format": "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best",
+    _BASE_OPTS = {
         "merge_output_format": "mp4",
         "outtmpl": out_template,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
-        "extractor_args": {"youtube": {"player_client": ["ios"]}},
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            duration = info.get("duration") or 0
-            if duration and duration > MAX_DURATION_SECONDS:
-                raise VideoUrlError(
-                    f"Bu video çok uzun ({int(duration // 60)} dakika). "
-                    f"En fazla {MAX_DURATION_SECONDS // 3600} saatlik videolar desteklenir."
-                )
-            title = info.get("title") or "video"
-            ydl.download([url])
-    except VideoUrlError:
-        raise
-    except yt_dlp.utils.DownloadError as e:
-        print(f"[yt-dlp indirme hatasi] {url}: {e}")
+    # Deneme sırası: farklı format+client kombinasyonları
+    _ATTEMPTS = [
+        {"format": "bv*[height<=1080]+ba/b[height<=1080]/b"},
+        {"format": "bv*[height<=1080]+ba/b[height<=1080]/b",
+         "extractor_args": {"youtube": {"player_client": ["ios"]}}},
+        {"format": "b", "extractor_args": {"youtube": {"player_client": ["ios"]}}},
+        {"format": "b"},
+    ]
+
+    title = "video"
+    last_error = None
+
+    for extra in _ATTEMPTS:
+        ydl_opts = {**_BASE_OPTS, **extra}
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                duration = info.get("duration") or 0
+                if duration and duration > MAX_DURATION_SECONDS:
+                    raise VideoUrlError(
+                        f"Bu video çok uzun ({int(duration // 60)} dakika). "
+                        f"En fazla {MAX_DURATION_SECONDS // 3600} saatlik videolar desteklenir."
+                    )
+                title = info.get("title") or "video"
+                ydl.download([url])
+            last_error = None
+            break
+        except VideoUrlError:
+            raise
+        except yt_dlp.utils.DownloadError as e:
+            err = str(e)
+            print(f"[yt-dlp deneme hatasi] {url}: {err[:200]}")
+            last_error = err
+            continue
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    if last_error is not None:
         raise VideoUrlError("Video indirilemedi - linkin geçerli ve herkese açık olduğundan emin ol")
-    except Exception as e:
-        raise VideoUrlError(f"Video indirilemedi: {e}")
 
     candidates = sorted(p for p in out_dir.glob(f"{job_id}_*") if ".part" not in p.name)
     if not candidates:
