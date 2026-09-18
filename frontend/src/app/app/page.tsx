@@ -8,6 +8,8 @@ import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const resolveUrl = (url: string | null | undefined) =>
+  !url ? undefined : url.startsWith("http") ? url : `${API_URL}${url}`;
 
 type Clip = {
   title: string;
@@ -570,8 +572,8 @@ function ClipCard({
     <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden text-left backdrop-blur-sm hover:border-white/20 transition-colors">
       <video
         key={clip.url}
-        src={`${API_URL}${clip.url}`}
-        poster={clip.cover_url ? `${API_URL}${clip.cover_url}` : undefined}
+        src={resolveUrl(clip.url)}
+        poster={resolveUrl(clip.cover_url)}
         controls
         className={`w-full ${aspectClass} object-cover bg-black`}
       />
@@ -1724,7 +1726,7 @@ export default function AppPage() {
                       {job.clips?.[0]?.cover_url ? (
                         // eslint-disable-next-line @next/next/no-img-element -- kucuk, sabit boyutlu bir thumbnail; next/image optimizasyonu burada gereksiz
                         <img
-                          src={`${API_URL}${job.clips[0].cover_url}`}
+                          src={resolveUrl(job.clips[0].cover_url)}
                           alt=""
                           className="w-full h-full object-cover"
                         />
