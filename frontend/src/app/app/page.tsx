@@ -1230,7 +1230,7 @@ export default function AppPage() {
 
   if (!token) return null;
 
-  const limitReached = me?.usage.limit !== null && me?.usage.limit !== undefined && me.usage.used >= me.usage.limit;
+  const limitReached = false; // KREDİ KONTROLİ GEÇİCİ OLARAK DEVRE DIŞI
   const effectiveClipCount = canCustomize ? clipCount : 5;
   const estimatedCost = renderOptions.credits.base + effectiveClipCount * renderOptions.credits.per_clip;
 
