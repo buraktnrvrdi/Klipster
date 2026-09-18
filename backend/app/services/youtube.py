@@ -79,13 +79,14 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")
 
     ydl_opts = {
+        "format": "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best",
         "merge_output_format": "mp4",
         "outtmpl": out_template,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
-        "extractor_args": {"youtube": {"player_client": ["tv_embedded", "ios"]}},
+        "extractor_args": {"youtube": {"player_client": ["ios"]}},
     }
 
     try:
