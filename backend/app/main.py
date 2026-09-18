@@ -50,7 +50,7 @@ from app.services.highlights import (
     translate_subtitles,
     translate_to_english,
 )
-from app.services.transcribe import transcribe
+from app.services.transcribe import transcribe, unload_model as unload_whisper
 from app.services.youtube import MIN_FREE_DISK_BYTES, VideoUrlError, download_video
 from app.services.video import (
     ASPECT_PRESETS,
@@ -980,6 +980,7 @@ def _run_pipeline_locked(
                 "veya sistem sesi izni verildiginden emin ol ve tekrar dene."
             )
         _set_job(job_id, words_json=json.dumps(all_words), language=detected_language)
+        unload_whisper()  # ffmpeg adımı için RAM boşalt
 
         _set_job(job_id, status="finding_highlights")
         clips = find_highlights(

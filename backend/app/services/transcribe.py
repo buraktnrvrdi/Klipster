@@ -1,6 +1,7 @@
 """Video/audio dosyasini metne cevirir, kelime bazli zaman damgalariyla.
 Dil ZORLANMAZ - Whisper videonun konusma dilini kendisi tespit eder, boylece
 altyazi videonun kendi dilinde cikar (sadece Turkce ile sinirli degil)."""
+import gc
 import os
 
 from faster_whisper import WhisperModel
@@ -21,6 +22,13 @@ def get_model():
     if _model is None:
         _model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type=WHISPER_COMPUTE_TYPE)
     return _model
+
+
+def unload_model():
+    """Transkripsiyon bittikten sonra modeli bellekten boşalt — ffmpeg adımı için RAM açar."""
+    global _model
+    _model = None
+    gc.collect()
 
 
 def _collect_segments(segments_iter) -> list:
