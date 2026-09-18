@@ -519,12 +519,13 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
     """Keep araliklarini ayri ayri kesip concat eder; tek aralik varsa direkt tek kesim yapar."""
     raw_path = out_dir / f"{name}_raw.mp4"
 
+    _ENCODE_FLAGS = ["-c:v", "libx264", "-threads", "2", "-c:a", "aac", "-preset", "fast"]
+
     if len(keep_intervals) == 1:
         s, e = keep_intervals[0]
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c:v", "libx264", "-c:a", "aac", "-preset", "fast",
-            str(raw_path),
+            *_ENCODE_FLAGS, str(raw_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg kesme adiminda hata verdi:\n" + result.stderr[-2000:])
@@ -535,8 +536,7 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
         seg_path = out_dir / f"{name}_seg{i}.mp4"
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c:v", "libx264", "-c:a", "aac", "-preset", "fast",
-            str(seg_path),
+            *_ENCODE_FLAGS, str(seg_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg segment kesme adiminda hata verdi:\n" + result.stderr[-2000:])
