@@ -79,7 +79,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")
 
     ydl_opts = {
-        "format": "best[ext=mp4]/best",
+        "format": "best",
         "merge_output_format": "mp4",
         "outtmpl": out_template,
         "noplaylist": True,
