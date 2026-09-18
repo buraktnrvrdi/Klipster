@@ -376,7 +376,7 @@ def _send_verification_email(user_id: int, email: str) -> None:
     token = secrets.token_urlsafe(32)
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO email_verifications (token, user_id) VALUES (?, ?)", (token, user_id)
+            "INSERT INTO email_verifications (token, user_id) VALUES (%s, %s)", (token, user_id)
         )
         conn.commit()
     link = f"{FRONTEND_URL}/email-dogrula?token={token}"
@@ -396,7 +396,7 @@ def _get_user_org(user_id: int) -> dict | None:
             SELECT organizations.id, organizations.name, organizations.owner_id, org_members.role
             FROM org_members
             JOIN organizations ON organizations.id = org_members.org_id
-            WHERE org_members.user_id = ?
+            WHERE org_members.user_id = %s
             """,
             (user_id,),
         ).fetchone()
@@ -409,7 +409,7 @@ def _effective_plan(current_user: dict, org: dict | None) -> str:
     if not org:
         return current_user["plan"]
     with get_conn() as conn:
-        row = conn.execute("SELECT plan FROM users WHERE id = ?", (org["owner_id"],)).fetchone()
+        row = conn.execute("SELECT plan FROM users WHERE id = %s", (org["owner_id"],)).fetchone()
     return row["plan"] if row else current_user["plan"]
 
 
@@ -417,8 +417,8 @@ def _job_scope(current_user: dict, org: dict | None) -> tuple[str, tuple]:
     """Bir kullanicinin gorebilecegi islerin SQL WHERE kosulu ve parametreleri -
     bir ekipteyse ekibin TUM isleri, degilse sadece kendi isleri gorunur."""
     if org:
-        return "org_id = ?", (org["id"],)
-    return "user_id = ? AND org_id IS NULL", (current_user["id"],)
+        return "org_id = %s", (org["id"],)
+    return "user_id = %s AND org_id IS NULL", (current_user["id"],)
 
 
 def _credits_used_this_month(current_user: dict, org: dict | None) -> int:
@@ -431,7 +431,7 @@ def _credits_used_this_month(current_user: dict, org: dict | None) -> int:
             f"""
             SELECT COALESCE(SUM(credit_cost), 0) as c FROM jobs
             WHERE {scope_sql} AND status != 'error'
-              AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
+              AND to_char(created_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')
             """,
             scope_params,
         ).fetchone()
@@ -448,19 +448,19 @@ async def register(payload: AuthPayload, request: Request):
         raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı")
 
     with get_conn() as conn:
-        existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        existing = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
         if existing:
             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
         cur = conn.execute(
-            "INSERT INTO users (email, password_hash, plan, email_verified) VALUES (?, ?, 'ucretsiz', 1)",
+            "INSERT INTO users (email, password_hash, plan, email_verified) VALUES (%s, %s, 'ucretsiz', 1) RETURNING id",
             (email, hash_password(payload.password)),
         )
         conn.commit()
-        user_id = cur.lastrowid
+        user_id = cur.fetchone()["id"]
 
     token = create_session(user_id)
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
     return {"ok": True, "email": email, "token": token, "user": _user_public(dict(row))}
 
 
@@ -470,7 +470,7 @@ async def login(payload: AuthPayload, request: Request):
     _rate_limiter.check(f"login:{_client_ip(request)}", limit=10, window_seconds=300)
     _rate_limiter.check(f"login:{email}", limit=10, window_seconds=300)
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone()
     if not row or not verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
     # TODO: e-posta dogrulama gecici olarak devre disi - SMTP Railway'de calismiyor
@@ -520,12 +520,12 @@ async def update_profile(payload: ProfilePayload, current_user: dict = Depends(g
     if not fields:
         raise HTTPException(status_code=400, detail="Güncellenecek bir alan yok")
 
-    keys = ", ".join(f"{k} = ?" for k in fields)
+    keys = ", ".join(f"{k} = %s" for k in fields)
     values = list(fields.values()) + [current_user["id"]]
     with get_conn() as conn:
-        conn.execute(f"UPDATE users SET {keys} WHERE id = ?", values)
+        conn.execute(f"UPDATE users SET {keys} WHERE id = %s", values)
         conn.commit()
-        row = dict(conn.execute("SELECT * FROM users WHERE id = ?", (current_user["id"],)).fetchone())
+        row = dict(conn.execute("SELECT * FROM users WHERE id = %s", (current_user["id"],)).fetchone())
 
     return {"user": _user_public(row)}
 
@@ -534,7 +534,7 @@ async def update_profile(payload: ProfilePayload, current_user: dict = Depends(g
 async def change_password(payload: PasswordPayload, current_user: dict = Depends(get_current_user)):
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT password_hash FROM users WHERE id = ?", (current_user["id"],)
+            "SELECT password_hash FROM users WHERE id = %s", (current_user["id"],)
         ).fetchone()
     if not row or not verify_password(payload.current_password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Mevcut şifre yanlış")
@@ -543,7 +543,7 @@ async def change_password(payload: PasswordPayload, current_user: dict = Depends
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
+            "UPDATE users SET password_hash = %s WHERE id = %s",
             (hash_password(payload.new_password), current_user["id"]),
         )
         conn.commit()
@@ -563,14 +563,14 @@ async def resend_verification(current_user: dict = Depends(get_current_user)):
 async def verify_email(payload: VerifyEmailPayload):
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT user_id, created_at FROM email_verifications WHERE token = ?", (payload.token,)
+            "SELECT user_id, created_at FROM email_verifications WHERE token = %s", (payload.token,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Doğrulama linki geçersiz veya süresi dolmuş")
 
         created_at = datetime.fromisoformat(row["created_at"]).replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) - created_at > timedelta(hours=EMAIL_VERIFICATION_TTL_HOURS):
-            conn.execute("DELETE FROM email_verifications WHERE token = ?", (payload.token,))
+            conn.execute("DELETE FROM email_verifications WHERE token = %s", (payload.token,))
             conn.commit()
             raise HTTPException(
                 status_code=410,
@@ -578,10 +578,10 @@ async def verify_email(payload: VerifyEmailPayload):
             )
 
         user_id = row["user_id"]
-        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
-        conn.execute("DELETE FROM email_verifications WHERE token = ?", (payload.token,))
+        conn.execute("UPDATE users SET email_verified = 1 WHERE id = %s", (user_id,))
+        conn.execute("DELETE FROM email_verifications WHERE token = %s", (payload.token,))
         conn.commit()
-        user_row = dict(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
+        user_row = dict(conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone())
 
     # Dogrulama linkine tiklamak, kayit sirasinda hic acilmamis olan oturumu
     # burada acar - kullanici boylece tekrar giris yapmadan direkt icer girer.
@@ -598,7 +598,7 @@ async def resend_verification_public(payload: ForgotPasswordPayload, request: Re
     _rate_limiter.check(f"resend-verification:{_client_ip(request)}", limit=5, window_seconds=3600)
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, email_verified FROM users WHERE email = ?", (email,)
+            "SELECT id, email_verified FROM users WHERE email = %s", (email,)
         ).fetchone()
         if row and not row["email_verified"]:
             _send_verification_email(row["id"], email)
@@ -616,11 +616,11 @@ async def forgot_password(payload: ForgotPasswordPayload, request: Request):
     email = payload.email.strip().lower()
     _rate_limiter.check(f"forgot-password:{_client_ip(request)}", limit=5, window_seconds=3600)
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        row = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
         if row:
             token = secrets.token_urlsafe(32)
             conn.execute(
-                "INSERT INTO password_resets (token, user_id) VALUES (?, ?)", (token, row["id"])
+                "INSERT INTO password_resets (token, user_id) VALUES (%s, %s)", (token, row["id"])
             )
             conn.commit()
             link = f"{FRONTEND_URL}/sifre-sifirla?token={token}"
@@ -646,7 +646,7 @@ async def reset_password(payload: ResetPasswordPayload, request: Request):
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT user_id, used, created_at FROM password_resets WHERE token = ?",
+            "SELECT user_id, used, created_at FROM password_resets WHERE token = %s",
             (payload.token,),
         ).fetchone()
     if not row:
@@ -660,10 +660,10 @@ async def reset_password(payload: ResetPasswordPayload, request: Request):
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
+            "UPDATE users SET password_hash = %s WHERE id = %s",
             (hash_password(payload.new_password), row["user_id"]),
         )
-        conn.execute("UPDATE password_resets SET used = 1 WHERE token = ?", (payload.token,))
+        conn.execute("UPDATE password_resets SET used = 1 WHERE token = %s", (payload.token,))
         conn.commit()
 
     # Sifre sifirlandiginda guvenlik icin tum eski oturumlar (bu linki paylasan
@@ -680,7 +680,7 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
     with get_conn() as conn:
         job_ids = [
             r["id"] for r in conn.execute(
-                "SELECT id FROM jobs WHERE user_id = ?", (current_user["id"],)
+                "SELECT id FROM jobs WHERE user_id = %s", (current_user["id"],)
             ).fetchall()
         ]
 
@@ -699,7 +699,7 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
     with get_conn() as conn:
         # sessions/jobs, users tablosundaki ON DELETE CASCADE sayesinde
         # otomatik siliniyor.
-        conn.execute("DELETE FROM users WHERE id = ?", (current_user["id"],))
+        conn.execute("DELETE FROM users WHERE id = %s", (current_user["id"],))
         conn.commit()
 
     return {"ok": True}
@@ -732,11 +732,11 @@ async def create_org(payload: OrgPayload, current_user: dict = Depends(get_curre
     org_id = str(uuid.uuid4())
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO organizations (id, name, owner_id) VALUES (?, ?, ?)",
+            "INSERT INTO organizations (id, name, owner_id) VALUES (%s, %s, %s)",
             (org_id, name, current_user["id"]),
         )
         conn.execute(
-            "INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'owner')",
+            "INSERT INTO org_members (org_id, user_id, role) VALUES (%s, %s, 'owner')",
             (org_id, current_user["id"]),
         )
         conn.commit()
@@ -755,7 +755,7 @@ async def get_org(current_user: dict = Depends(get_current_user)):
             """
             SELECT users.id, users.email, users.display_name, users.avatar, org_members.role
             FROM org_members JOIN users ON users.id = org_members.user_id
-            WHERE org_members.org_id = ?
+            WHERE org_members.org_id = %s
             ORDER BY (org_members.role = 'owner') DESC, org_members.joined_at ASC
             """,
             (org["id"],),
@@ -763,7 +763,7 @@ async def get_org(current_user: dict = Depends(get_current_user)):
         invites = []
         if org["role"] == "owner":
             invites = conn.execute(
-                "SELECT token, email, created_at FROM org_invites WHERE org_id = ? ORDER BY created_at DESC",
+                "SELECT token, email, created_at FROM org_invites WHERE org_id = %s ORDER BY created_at DESC",
                 (org["id"],),
             ).fetchall()
 
@@ -792,7 +792,7 @@ async def invite_to_org(payload: InvitePayload, current_user: dict = Depends(get
         existing_member = conn.execute(
             """
             SELECT 1 FROM org_members JOIN users ON users.id = org_members.user_id
-            WHERE org_members.org_id = ? AND users.email = ?
+            WHERE org_members.org_id = %s AND users.email = %s
             """,
             (org["id"], email),
         ).fetchone()
@@ -801,7 +801,7 @@ async def invite_to_org(payload: InvitePayload, current_user: dict = Depends(get
 
         token = uuid.uuid4().hex
         conn.execute(
-            "INSERT INTO org_invites (token, org_id, email) VALUES (?, ?, ?)",
+            "INSERT INTO org_invites (token, org_id, email) VALUES (%s, %s, %s)",
             (token, org["id"], email),
         )
         conn.commit()
@@ -815,7 +815,7 @@ async def cancel_invite(token: str, current_user: dict = Depends(get_current_use
     if not org or org["role"] != "owner":
         raise HTTPException(status_code=403, detail="Sadece ekip sahibi daveti iptal edebilir")
     with get_conn() as conn:
-        conn.execute("DELETE FROM org_invites WHERE token = ? AND org_id = ?", (token, org["id"]))
+        conn.execute("DELETE FROM org_invites WHERE token = %s AND org_id = %s", (token, org["id"]))
         conn.commit()
     return {"ok": True}
 
@@ -823,7 +823,7 @@ async def cancel_invite(token: str, current_user: dict = Depends(get_current_use
 @app.post("/api/org/accept-invite")
 async def accept_invite(payload: AcceptInvitePayload, current_user: dict = Depends(get_current_user)):
     with get_conn() as conn:
-        invite = conn.execute("SELECT * FROM org_invites WHERE token = ?", (payload.token,)).fetchone()
+        invite = conn.execute("SELECT * FROM org_invites WHERE token = %s", (payload.token,)).fetchone()
     if not invite:
         raise HTTPException(status_code=404, detail="Davet geçersiz veya süresi dolmuş")
     invite = dict(invite)
@@ -835,12 +835,12 @@ async def accept_invite(payload: AcceptInvitePayload, current_user: dict = Depen
 
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'member')",
+            "INSERT INTO org_members (org_id, user_id, role) VALUES (%s, %s, 'member')",
             (invite["org_id"], current_user["id"]),
         )
-        conn.execute("DELETE FROM org_invites WHERE token = ?", (payload.token,))
+        conn.execute("DELETE FROM org_invites WHERE token = %s", (payload.token,))
         conn.commit()
-        org_row = conn.execute("SELECT name FROM organizations WHERE id = ?", (invite["org_id"],)).fetchone()
+        org_row = conn.execute("SELECT name FROM organizations WHERE id = %s", (invite["org_id"],)).fetchone()
 
     return {"org_id": invite["org_id"], "org_name": org_row["name"] if org_row else None}
 
@@ -853,7 +853,7 @@ async def remove_member(member_id: int, current_user: dict = Depends(get_current
     if member_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Kendini çıkaramazsın")
     with get_conn() as conn:
-        conn.execute("DELETE FROM org_members WHERE org_id = ? AND user_id = ?", (org["id"], member_id))
+        conn.execute("DELETE FROM org_members WHERE org_id = %s AND user_id = %s", (org["id"], member_id))
         conn.commit()
     return {"ok": True}
 
@@ -869,7 +869,7 @@ async def leave_org(current_user: dict = Depends(get_current_user)):
             detail="Ekip sahibi ekipten ayrılamaz - ekibi tamamen silmek için hesap ayarlarını kullan",
         )
     with get_conn() as conn:
-        conn.execute("DELETE FROM org_members WHERE org_id = ? AND user_id = ?", (org["id"], current_user["id"]))
+        conn.execute("DELETE FROM org_members WHERE org_id = %s AND user_id = %s", (org["id"], current_user["id"]))
         conn.commit()
     return {"ok": True}
 
@@ -885,10 +885,10 @@ MAX_CLIPS_PER_JOB = 15
 
 
 def _set_job(job_id: str, **fields):
-    keys = ", ".join(f"{k} = ?" for k in fields)
+    keys = ", ".join(f"{k} = %s" for k in fields)
     values = list(fields.values()) + [job_id]
     with get_conn() as conn:
-        conn.execute(f"UPDATE jobs SET {keys} WHERE id = ?", values)
+        conn.execute(f"UPDATE jobs SET {keys} WHERE id = %s", values)
         conn.commit()
 
 
@@ -1158,7 +1158,7 @@ def _start_processing_job(
         conn.execute(
             """
             INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, smart_crop, auto_zoom, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, credit_cost, org_id)
-            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 job_id, current_user["id"], filename, style, int(remove_fillers), int(smart_crop), int(auto_zoom),
@@ -1255,7 +1255,7 @@ async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1290,7 +1290,7 @@ async def job_source(job_id: str, current_user: dict = Depends(get_current_user_
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1320,7 +1320,7 @@ async def retrim_clip(
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1435,7 +1435,7 @@ async def retrim_clip(
     }
 
     with get_conn() as conn:
-        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.execute("UPDATE jobs SET clips_json = %s WHERE id = %s", (json.dumps(clips), job_id))
         conn.commit()
 
     return _resolve_clip_urls(clips[clip_index])
@@ -1456,7 +1456,7 @@ async def add_clip(
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1589,7 +1589,7 @@ async def add_clip(
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE jobs SET clips_json = ?, credit_cost = credit_cost + ? WHERE id = ?",
+            "UPDATE jobs SET clips_json = %s, credit_cost = credit_cost + %s WHERE id = %s",
             (json.dumps(clips), added_cost, job_id),
         )
         conn.commit()
@@ -1610,7 +1610,7 @@ async def delete_clip(
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1640,7 +1640,7 @@ async def delete_clip(
 
     clips.pop(clip_index)
     with get_conn() as conn:
-        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.execute("UPDATE jobs SET clips_json = %s WHERE id = %s", (json.dumps(clips), job_id))
         conn.commit()
 
     return {"ok": True, "clips": clips}
@@ -1665,7 +1665,7 @@ async def translate_clip(
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1713,7 +1713,7 @@ async def translate_clip(
     clips[clip_index] = {**clip, "translations": translations}
 
     with get_conn() as conn:
-        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.execute("UPDATE jobs SET clips_json = %s WHERE id = %s", (json.dumps(clips), job_id))
         conn.commit()
 
     return _resolve_clip_urls(clips[clip_index])
@@ -1732,7 +1732,7 @@ async def generate_clip_caption(
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")
@@ -1764,7 +1764,7 @@ async def generate_clip_caption(
     clips[clip_index] = {**clip, "social_caption": result["caption"], "social_hashtags": result["hashtags"]}
 
     with get_conn() as conn:
-        conn.execute("UPDATE jobs SET clips_json = ? WHERE id = ?", (json.dumps(clips), job_id))
+        conn.execute("UPDATE jobs SET clips_json = %s WHERE id = %s", (json.dumps(clips), job_id))
         conn.commit()
 
     return _resolve_clip_urls(clips[clip_index])
@@ -1803,7 +1803,7 @@ async def job_words(job_id: str, current_user: dict = Depends(get_current_user))
     scope_sql, scope_params = _job_scope(current_user, org)
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT * FROM jobs WHERE id = ? AND {scope_sql}", (job_id, *scope_params)
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Bulunamadı")

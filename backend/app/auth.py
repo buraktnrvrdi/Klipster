@@ -23,7 +23,7 @@ def _lookup_user_by_token(token: str | None) -> dict:
                    users.email_verified, users.created_at, sessions.expires_at
             FROM sessions
             JOIN users ON users.id = sessions.user_id
-            WHERE sessions.token = ?
+            WHERE sessions.token = %s
             """,
             (token,),
         ).fetchone()
@@ -41,7 +41,7 @@ def _lookup_user_by_token(token: str | None) -> dict:
             expiry = None
         if expiry and datetime.now(timezone.utc) > expiry:
             with get_conn() as conn:
-                conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+                conn.execute("DELETE FROM sessions WHERE token = %s", (token,))
                 conn.commit()
             raise HTTPException(status_code=401, detail="Oturum suresi doldu, tekrar giris yap")
 
@@ -64,7 +64,7 @@ def create_session(user_id: int) -> str:
     expires_at = (datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)).isoformat()
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)",
             (token, user_id, expires_at),
         )
         conn.commit()
@@ -76,7 +76,7 @@ def invalidate_all_sessions(user_id: int) -> None:
     guvenlik icin: eger sifre calinmis ve baskasi oturum acmissa, sifre
     degistirilince o oturum da dusmeli."""
     with get_conn() as conn:
-        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
         conn.commit()
 
 
