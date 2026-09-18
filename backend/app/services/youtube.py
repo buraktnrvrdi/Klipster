@@ -86,7 +86,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
-        "extractor_args": {"youtube": {"player_client": ["ios"]}},
+        "extractor_args": {"youtube": {"player_client": ["mweb", "ios"]}},
     }
 
     try:
