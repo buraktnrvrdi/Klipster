@@ -1143,7 +1143,7 @@ def _start_processing_job(
     cost = compute_credit_cost(duration_seconds, max_clips)
 
     limit = CREDIT_LIMITS.get(effective_plan, CREDIT_LIMITS["ucretsiz"])
-    if limit is not None:
+    if False and limit is not None:  # KREDİ KONTROLİ GEÇİCİ OLARAK DEVRE DIŞI
         used = _credits_used_this_month(current_user, org)
         if used + cost > limit:
             video_path.unlink(missing_ok=True)
@@ -1498,7 +1498,7 @@ async def add_clip(
     added_cost = compute_added_clip_cost(duration_seconds)
     effective_plan = _effective_plan(current_user, org)
     limit = CREDIT_LIMITS.get(effective_plan, CREDIT_LIMITS["ucretsiz"])
-    if limit is not None:
+    if False and limit is not None:  # KREDİ KONTROLİ GEÇİCİ OLARAK DEVRE DIŞI
         used = _credits_used_this_month(current_user, org)
         if used + added_cost > limit:
             raise HTTPException(
