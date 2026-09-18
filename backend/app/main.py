@@ -1000,10 +1000,8 @@ def _run_pipeline_locked(
                 animation=subtitle_animation, highlight_color=highlight_color,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
-            print(f"[DEBUG] cover_path={cover_path}, path_exists={path.exists() if path else None}", flush=True)
             clip_url = _upload_output(job_id, path)
             cover_url = _upload_output(job_id, cover_path) if cover_path else None
-            print(f"[DEBUG] clip_url={clip_url}, cover_url={cover_url}", flush=True)
             subtitles_en_url = None
             if detected_language != "en":
                 subtitles_en_url = _generate_english_subtitles(
@@ -1833,19 +1831,3 @@ async def health():
     return {"ok": True}
 
 
-@app.get("/api/admin/reset-credits")
-async def admin_reset_credits(email: str, secret: str):
-    admin_secret = os.environ.get("ADMIN_SECRET", "")
-    if not admin_secret or secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Yetkisiz")
-    with get_conn() as conn:
-        user = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-        conn.execute(
-            "UPDATE jobs SET status='error', error_message='Kredi sıfırlandı (admin)' "
-            "WHERE user_id = %s AND status != 'error' "
-            "AND to_char(created_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')",
-            (user["id"],)
-        )
-    return {"ok": True, "message": f"{email} kredisi sıfırlandı"}
