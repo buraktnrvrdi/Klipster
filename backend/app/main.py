@@ -1836,7 +1836,7 @@ async def admin_reset_credits(email: str, secret: str):
     admin_secret = os.environ.get("ADMIN_SECRET", "")
     if not admin_secret or secret != admin_secret:
         raise HTTPException(status_code=403, detail="Yetkisiz")
-    with _get_db() as conn:
+    with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE users SET credits_used = 0 WHERE email = %s", (email,))
         if cur.rowcount == 0:
