@@ -13,6 +13,7 @@ _model = None
 #   WHISPER_COMPUTE_TYPE=int8  (varsayilan; "float32" CPU'da daha yavas ama en dogru sonucu verir)
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
 WHISPER_COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "int8")
+WHISPER_LANGUAGE = os.environ.get("WHISPER_LANGUAGE") or None  # None = otomatik tespit
 
 
 def get_model():
@@ -54,6 +55,7 @@ def transcribe(video_path: str):
         word_timestamps=True,
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500},
+        language=WHISPER_LANGUAGE,
     )
     try:
         result = _collect_segments(segments_iter)
@@ -64,6 +66,6 @@ def transcribe(video_path: str):
         # tekrar deniyoruz. Sesin gercekten hic olmadigi durumda bu ikinci
         # deneme de bos bir sonuc dondurur (hata degil) - bu, run_pipeline'in
         # kullaniciya anlasilir bir mesaj gostermesini sagliyor.
-        segments_iter, info = model.transcribe(video_path, word_timestamps=True, vad_filter=False)
+        segments_iter, info = model.transcribe(video_path, word_timestamps=True, vad_filter=False, language=WHISPER_LANGUAGE)
         result = _collect_segments(segments_iter)
     return result, info.language
