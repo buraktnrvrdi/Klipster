@@ -860,28 +860,48 @@ def make_vertical_clip(
                 # d=1 + kaynagin TAM fps'i: kare kopyalama/dusurme olmadan
                 # 1:1 kare eslemesi, boylece video suresi (dolayisiyla ses
                 # senkronu, ses ayrica -c:a copy ile degismiyor) korunur.
+                # Zoompan yarı çözünürlükte çalışır (~4x daha hızlı, zoom
+                # efekti için kalite farkı göze çarpmaz), sonra scale ile
+                # hedef çözünürlüğe getirilir.
+                half_w = aspect_preset['res_x'] // 2
+                half_h = aspect_preset['res_y'] // 2
                 zoom_step = (
+                    f"scale={half_w}:{half_h},"
                     f"zoompan=z='{zoom_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':"
-                    f"s={aspect_preset['res_x']}x{aspect_preset['res_y']}:fps={fps}:d=1"
+                    f"s={half_w}x{half_h}:fps={fps}:d=1,"
+                    f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']}:flags=bilinear"
                 )
         except Exception:
             # Zoom hesaplama/ifade uretimi herhangi bir nedenle patlarsa
             # sessizce zoomsuz devam et - smart_crop ile ayni felsefe.
             zoom_step = None
 
+    scale_step = f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},setsar=1"
     if zoom_step:
-        vf = f"{crop_step},{zoom_step},subtitles=filename={ass_path.name}"
+        vf = f"{crop_step},{zoom_step},setsar=1,subtitles=filename={ass_path.name}"
     else:
-        vf = (
-            f"{crop_step},"
-            f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},"
-            f"subtitles=filename={ass_path.name}"
-        )
-    result = subprocess.run([
-        "ffmpeg", "-y", "-i", raw_path.name, "-vf", vf,
-        "-c:v", "libx264", "-c:a", "copy", "-preset", "fast",
-        final_path.name,
-    ], capture_output=True, text=True, cwd=str(out_dir))
+        vf = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
+
+    vf_fallback = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
+
+    def _run_ffmpeg(vf_filter: str):
+        try:
+            return subprocess.run([
+                "ffmpeg", "-y", "-i", raw_path.name, "-vf", vf_filter,
+                "-c:v", "libx264", "-threads", "2",
+                "-c:a", "copy", "-preset", "fast",
+                final_path.name,
+            ], capture_output=True, text=True, cwd=str(out_dir), timeout=600)
+        except subprocess.TimeoutExpired:
+            return None
+
+    result = _run_ffmpeg(vf)
+    if (result is None or result.returncode != 0) and zoom_step:
+        # zoompan bazı kaynak videolarda (garip SAR, OOM, timeout) başarısız olur —
+        # zoomsuz sürümle yeniden dene
+        result = _run_ffmpeg(vf_fallback)
+    if result is None:
+        raise RuntimeError("ffmpeg altyazi adiminda zaman asimi (600s)")
     if result.returncode != 0:
         raise RuntimeError("ffmpeg altyazi adiminda hata verdi:\n" + result.stderr[-2000:])
 
