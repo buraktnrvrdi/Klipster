@@ -89,10 +89,11 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
 
     # Deneme sırası: farklı format+client kombinasyonları
     _ATTEMPTS = [
-        {"format": "bv*[height<=1080]+ba/b[height<=1080]/b"},
-        {"format": "bv*[height<=1080]+ba/b[height<=1080]/b",
-         "extractor_args": {"youtube": {"player_client": ["ios"]}}},
-        {"format": "b", "extractor_args": {"youtube": {"player_client": ["ios"]}}},
+        {"format": "bv*[height<=1080]+ba/b",
+         "extractor_args": {"youtube": {"player_client": ["android"]}}},
+        {"format": "bv*[height<=1080]+ba/b",
+         "extractor_args": {"youtube": {"player_client": ["android", "ios"]}}},
+        {"format": "bv*[height<=1080]+ba/b"},
         {"format": "b"},
     ]
 
