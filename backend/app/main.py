@@ -1831,7 +1831,7 @@ async def health():
     return {"ok": True}
 
 
-@app.post("/api/admin/reset-credits")
+@app.get("/api/admin/reset-credits")
 async def admin_reset_credits(email: str, secret: str):
     admin_secret = os.environ.get("ADMIN_SECRET", "")
     if not admin_secret or secret != admin_secret:
