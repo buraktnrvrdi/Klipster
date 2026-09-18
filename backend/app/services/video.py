@@ -934,6 +934,15 @@ def make_vertical_clip(
 
 def make_cover(video_path: Path, title: str, out_path: Path, capture_time: float = 1.0):
     """Klipten bir kare alip uzerine baslik metni bindirilmis bir kapak (kapak.jpg) uretir."""
+    import logging
+    try:
+        return _make_cover_inner(video_path, title, out_path, capture_time)
+    except Exception as e:
+        logging.warning(f"make_cover basarisiz ({video_path}): {e}")
+        return None
+
+
+def _make_cover_inner(video_path: Path, title: str, out_path: Path, capture_time: float):
     from PIL import Image, ImageDraw, ImageFont
 
     tmp_frame = out_path.with_suffix(".raw.jpg")
