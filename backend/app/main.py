@@ -1837,9 +1837,13 @@ async def admin_reset_credits(email: str, secret: str):
     if not admin_secret or secret != admin_secret:
         raise HTTPException(status_code=403, detail="Yetkisiz")
     with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE users SET credits_used = 0 WHERE email = %s", (email,))
-        if cur.rowcount == 0:
+        user = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
+        if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-        conn.commit()
+        conn.execute(
+            "UPDATE jobs SET status='error', error_message='Kredi sıfırlandı (admin)' "
+            "WHERE user_id = %s AND status != 'error' "
+            "AND to_char(created_at, 'YYYY-MM') = to_char(now(), 'YYYY-MM')",
+            (user["id"],)
+        )
     return {"ok": True, "message": f"{email} kredisi sıfırlandı"}
