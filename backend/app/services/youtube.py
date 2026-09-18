@@ -102,7 +102,8 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
             ydl.download([url])
     except VideoUrlError:
         raise
-    except yt_dlp.utils.DownloadError:
+    except yt_dlp.utils.DownloadError as e:
+        print(f"[yt-dlp indirme hatasi] {url}: {e}")
         raise VideoUrlError("Video indirilemedi - linkin geçerli ve herkese açık olduğundan emin ol")
     except Exception as e:
         raise VideoUrlError(f"Video indirilemedi: {e}")
