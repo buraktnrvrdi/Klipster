@@ -1,7 +1,9 @@
 """Auth akislari (kayit -> e-posta dogrulama -> giris) ve rate limiting
 icin uctan uca API testleri. Daha once bu 1600+ satirlik main.py icin
-hic endpoint testi yoktu. conftest.py, gercek gelistirme veritabanina
-dokunulmamasi icin bagimsiz bir gecici SQLite dosyasi ayarliyor."""
+hic endpoint testi yoktu. conftest.py, testlerin DATABASE_URL ile
+gosterilen (gercek gelistirme/production veritabanindan bagimsiz,
+CI'da gecici bir servis container'i olan) bir Postgres'e karsi
+calismasini zorunlu kilar."""
 import sys
 from pathlib import Path
 
@@ -39,7 +41,7 @@ def _latest_verification_token(email: str) -> str:
             """
             SELECT ev.token FROM email_verifications ev
             JOIN users u ON u.id = ev.user_id
-            WHERE u.email = ?
+            WHERE u.email = %s
             ORDER BY ev.created_at DESC LIMIT 1
             """,
             (email,),
@@ -49,12 +51,19 @@ def _latest_verification_token(email: str) -> str:
 
 
 def test_register_then_login_requires_email_verification(client):
+    # NOT: main.py'de e-posta dogrulama zorunlulugu su an KASITLI olarak
+    # devre disi birakilmis durumda (Railway'de SMTP calismadigi icin,
+    # Resend.com entegrasyonu tamamlanana kadar - main.py'deki TODO'ya bak).
+    # Bu yuzden yeni kayit su an dogrudan giris yapabiliyor; bu test o
+    # gecici davranisi dogruluyor, NIHAI/istenen davranisi degil - e-posta
+    # dogrulamasi tekrar aktif edilince bu test de eski haline (403 bekleyen)
+    # donmeli.
     email = "test-auth-1@example.com"
     r = client.post("/api/auth/register", json={"email": email, "password": "sifre123"})
     assert r.status_code == 200
 
     r = client.post("/api/auth/login", json={"email": email, "password": "sifre123"})
-    assert r.status_code == 403
+    assert r.status_code == 200
 
 
 def test_register_verify_and_login_flow(client):
