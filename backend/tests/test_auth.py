@@ -13,7 +13,6 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 import app.main as main  # noqa: E402
-from app.db import get_conn  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -35,21 +34,6 @@ def client():
     return TestClient(main.app)
 
 
-def _latest_verification_token(email: str) -> str:
-    with get_conn() as conn:
-        row = conn.execute(
-            """
-            SELECT ev.token FROM email_verifications ev
-            JOIN users u ON u.id = ev.user_id
-            WHERE u.email = %s
-            ORDER BY ev.created_at DESC LIMIT 1
-            """,
-            (email,),
-        ).fetchone()
-    assert row is not None
-    return row["token"]
-
-
 def test_register_then_login_requires_email_verification(client):
     # NOT: main.py'de e-posta dogrulama zorunlulugu su an KASITLI olarak
     # devre disi birakilmis durumda (Railway'de SMTP calismadigi icin,
@@ -66,23 +50,24 @@ def test_register_then_login_requires_email_verification(client):
     assert r.status_code == 200
 
 
-def test_register_verify_and_login_flow(client):
+def test_register_returns_usable_session_and_allows_later_login(client):
+    # NOT: e-posta dogrulamasi kasitli olarak devre disi oldugu icin
+    # (bkz. yukaridaki test) register artik e-posta linki beklemeden
+    # dogrudan kullanilabilir bir oturum tokeni donduruyor - eskiden bu
+    # test register->verify-email->login akisini dogruluyordu, dogrulama
+    # geri gelince bu test de o akisa donmeli.
     email = "test-auth-2@example.com"
     r = client.post("/api/auth/register", json={"email": email, "password": "sifre123"})
     assert r.status_code == 200
-
-    token = _latest_verification_token(email)
-    r = client.post("/api/auth/verify-email", json={"token": token})
-    assert r.status_code == 200
-    assert r.json()["ok"] is True
-
-    r = client.post("/api/auth/login", json={"email": email, "password": "sifre123"})
-    assert r.status_code == 200
     session_token = r.json()["token"]
+    assert session_token
 
     r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {session_token}"})
     assert r.status_code == 200
     assert r.json()["user"]["email"] == email
+
+    r = client.post("/api/auth/login", json={"email": email, "password": "sifre123"})
+    assert r.status_code == 200
 
 
 def test_register_rejects_invalid_email(client):
