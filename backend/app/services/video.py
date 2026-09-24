@@ -480,7 +480,7 @@ def chunk_words(words: list, style: str = DEFAULT_STYLE) -> list[dict]:
         group = words[i:i + chunk_size]
         if not group:
             continue
-        text = "".join(w["word"] for w in group).strip().replace("\n", " ")
+        text = " ".join(w["word"].strip() for w in group).strip().replace("\n", " ")
         if not text:
             continue
         chunks.append({"start": group[0]["start"], "end": group[-1]["end"], "text": text})
