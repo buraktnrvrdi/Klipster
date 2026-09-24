@@ -500,16 +500,28 @@ def write_srt(chunks: list[dict], srt_path: Path):
     srt_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+_PRE_SEEK = 5.0  # dual-ss kesiminde hizli arama tamponu (saniye)
+
+
+def _ffmpeg_cut(input_path: str, s: float, e: float, out_path: Path) -> subprocess.CompletedProcess:
+    """Dual-ss teknigi ile sample-accurate kesim: hizli keyframe atlamasi + ince ayar."""
+    fast_seek = max(0.0, s - _PRE_SEEK)
+    fine_seek = s - fast_seek
+    return subprocess.run([
+        "ffmpeg", "-y",
+        "-ss", str(fast_seek), "-i", input_path,
+        "-ss", str(fine_seek), "-t", str(e - s),
+        "-c", "copy", "-avoid_negative_ts", "make_zero", str(out_path),
+    ], capture_output=True, text=True)
+
+
 def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]], out_dir: Path, name: str) -> Path:
     """Keep araliklarini ayri ayri kesip concat eder; tek aralik varsa direkt tek kesim yapar."""
     raw_path = out_dir / f"{name}_raw.mp4"
 
     if len(keep_intervals) == 1:
         s, e = keep_intervals[0]
-        result = subprocess.run([
-            "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c", "copy", "-avoid_negative_ts", "make_zero", str(raw_path),
-        ], capture_output=True, text=True)
+        result = _ffmpeg_cut(input_path, s, e, raw_path)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg kesme adiminda hata verdi:\n" + result.stderr[-2000:])
         return raw_path
@@ -517,10 +529,7 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
     seg_paths = []
     for i, (s, e) in enumerate(keep_intervals):
         seg_path = out_dir / f"{name}_seg{i}.mp4"
-        result = subprocess.run([
-            "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c", "copy", "-avoid_negative_ts", "make_zero", str(seg_path),
-        ], capture_output=True, text=True)
+        result = _ffmpeg_cut(input_path, s, e, seg_path)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg segment kesme adiminda hata verdi:\n" + result.stderr[-2000:])
         seg_paths.append(seg_path)
