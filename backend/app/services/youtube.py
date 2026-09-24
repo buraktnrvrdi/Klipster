@@ -130,22 +130,36 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
 
-    # ios/android client'lari cookie desteklemiyor (yt-dlp uyarisiyla skip eder).
-    # Cookie'li denemeler icin web-based clientlar; cookie'siz fallback icin ios/android.
-    # _no_cookie=True olan denemelerden cookiefile kaldirilir.
+    # Deneme sirasi: once cookie+web clientlar, sonra cookie gerektirmeyen mobile.
+    # player_skip=["webpage"] => web sayfasini cekmeyi atlar, "page needs to be reloaded"
+    # bot-detection hatasini engeller. _no_cookie=True olan denemelerden cookiefile kaldirilir.
+    _FMT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
     _ATTEMPTS = [
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        # Web clientlar - cookie varsa cok daha guvenilir
+        {"format": _FMT},
+        {"format": _FMT,
+         "extractor_args": {"youtube": {"player_client": ["web_creator"]}}},
+        {"format": _FMT,
          "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        {"format": _FMT,
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        # Android/iOS: cookie gereksiz, webpage fetch'i atla (bot-detection bypass)
+        {"format": _FMT,
          "_no_cookie": True,
-         "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+         "extractor_args": {"youtube": {"player_client": ["android"],
+                                        "player_skip": ["webpage"]}}},
+        {"format": _FMT,
          "_no_cookie": True,
-         "extractor_args": {"youtube": {"player_client": ["ios"]}}},
-        {"format": "best"},
+         "extractor_args": {"youtube": {"player_client": ["ios"],
+                                        "player_skip": ["webpage"]}}},
+        {"format": _FMT,
+         "_no_cookie": True,
+         "extractor_args": {"youtube": {"player_client": ["android_vr"],
+                                        "player_skip": ["webpage"]}}},
+        # Son care: format kisitlamasi olmadan
+        {"format": "best", "_no_cookie": True,
+         "extractor_args": {"youtube": {"player_client": ["android"],
+                                        "player_skip": ["webpage"]}}},
     ]
 
     title = "video"
