@@ -143,21 +143,23 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
          "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
         {"format": _FMT,
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        # Android/iOS: cookie gereksiz, webpage fetch'i atla (bot-detection bypass)
+        # Android/iOS + cookie + player_skip: datacenter IP'lerde cookie gerekiyor
+        {"format": _FMT,
+         "extractor_args": {"youtube": {"player_client": ["android"],
+                                        "player_skip": ["webpage"]}}},
+        {"format": _FMT,
+         "extractor_args": {"youtube": {"player_client": ["ios"],
+                                        "player_skip": ["webpage"]}}},
+        {"format": _FMT,
+         "extractor_args": {"youtube": {"player_client": ["android_vr"],
+                                        "player_skip": ["webpage"]}}},
+        # Cookie'siz fallback
         {"format": _FMT,
          "_no_cookie": True,
          "extractor_args": {"youtube": {"player_client": ["android"],
                                         "player_skip": ["webpage"]}}},
-        {"format": _FMT,
-         "_no_cookie": True,
-         "extractor_args": {"youtube": {"player_client": ["ios"],
-                                        "player_skip": ["webpage"]}}},
-        {"format": _FMT,
-         "_no_cookie": True,
-         "extractor_args": {"youtube": {"player_client": ["android_vr"],
-                                        "player_skip": ["webpage"]}}},
         # Son care: format kisitlamasi olmadan
-        {"format": "best", "_no_cookie": True,
+        {"format": "best",
          "extractor_args": {"youtube": {"player_client": ["android"],
                                         "player_skip": ["webpage"]}}},
     ]
