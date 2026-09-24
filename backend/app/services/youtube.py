@@ -2,12 +2,14 @@
 video indirme. Boylece kullanici bilgisayarindan dosya yuklemek yerine bir
 video linki yapistirarak da ayni klip uretim hattini calistirabilir - sanki
 bilgisayarindan yuklemis gibi (bkz. app/main.py _start_processing_job)."""
+import base64
 import ipaddress
 import logging
 import os
 import re
 import shutil
 import socket
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -66,6 +68,31 @@ class VideoUrlError(Exception):
     """Mesaji oldugu gibi kullaniciya gosterilebilecek, anlasilir bir hata."""
 
 
+_cookie_file_path: str | None = None
+
+
+def _get_cookie_file() -> str | None:
+    """YOUTUBE_COOKIES_B64 env var'indan cookie dosyasini olusturur (tek seferlik)."""
+    global _cookie_file_path
+    if _cookie_file_path and os.path.exists(_cookie_file_path):
+        return _cookie_file_path
+    b64 = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
+    if not b64:
+        return None
+    try:
+        data = base64.b64decode(b64)
+    except Exception:
+        logger.warning("YOUTUBE_COOKIES_B64 gecersiz base64 iceriyor, cookie kullanilmayacak")
+        return None
+    fd, path = tempfile.mkstemp(suffix=".txt", prefix="yt_cookies_")
+    os.close(fd)
+    with open(path, "wb") as f:
+        f.write(data)
+    _cookie_file_path = path
+    logger.info("YouTube cookie dosyasi olusturuldu: %s", path)
+    return path
+
+
 def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     """Verilen linkten videoyu indirir, (dosya_yolu, video_basligi) dondurur.
     Dosya, mevcut yukleme dosyalarinin isimlendirme deseniyle (job_id on eki)
@@ -81,7 +108,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         raise VideoUrlError("Sunucuda şu an yeterli depolama alanı yok - lütfen daha sonra tekrar dene")
     out_template = str(out_dir / f"{job_id}_%(title).100B.%(ext)s")
 
-    _BASE_OPTS = {
+    _BASE_OPTS: dict = {
         "merge_output_format": "mp4",
         "outtmpl": out_template,
         "noplaylist": True,
@@ -89,6 +116,9 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         "no_warnings": True,
         "restrictfilenames": True,
     }
+    cookie_file = _get_cookie_file()
+    if cookie_file:
+        _BASE_OPTS["cookiefile"] = cookie_file
 
     # Deneme sırası: farklı format+client kombinasyonları.
     # Fallback olarak bile en az 720p zorlanır - kalitesiz /b kullanılmaz.
