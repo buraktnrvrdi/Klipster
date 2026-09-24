@@ -90,19 +90,19 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         "restrictfilenames": True,
     }
 
-    # Deneme sırası: farklı format+client kombinasyonları
-    # mweb/web önce: sunucu IP'leri bot tespitine daha az takılır
+    # Deneme sırası: farklı format+client kombinasyonları.
+    # Fallback olarak bile en az 720p zorlanır - kalitesiz /b kullanılmaz.
     _ATTEMPTS = [
-        {"format": "bv*[height<=1080]+ba/b",
+        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        {"format": "bv*[height<=1080]+ba/b",
+        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
          "extractor_args": {"youtube": {"player_client": ["web"]}}},
-        {"format": "bv*[height<=1080]+ba/b",
+        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
          "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"format": "bv*[height<=1080]+ba/b",
+        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
          "extractor_args": {"youtube": {"player_client": ["android", "ios"]}}},
-        {"format": "bv*[height<=1080]+ba/b"},
-        {"format": "bv[height<=1080]+ba/b"},
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height>=720]"},
+        {"format": "best[height>=720]/best[height>=480]"},
     ]
 
     title = "video"
