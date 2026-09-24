@@ -91,7 +91,12 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     }
 
     # Deneme sırası: farklı format+client kombinasyonları
+    # mweb/web önce: sunucu IP'leri bot tespitine daha az takılır
     _ATTEMPTS = [
+        {"format": "bv*[height<=1080]+ba/b",
+         "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
+        {"format": "bv*[height<=1080]+ba/b",
+         "extractor_args": {"youtube": {"player_client": ["web"]}}},
         {"format": "bv*[height<=1080]+ba/b",
          "extractor_args": {"youtube": {"player_client": ["android"]}}},
         {"format": "bv*[height<=1080]+ba/b",
