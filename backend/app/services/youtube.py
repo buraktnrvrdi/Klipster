@@ -170,6 +170,10 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         "no_warnings": True,
         "restrictfilenames": True,
     }
+    proxy = os.environ.get("YTDL_PROXY", "").strip()
+    if proxy:
+        _BASE_OPTS["proxy"] = proxy
+
     cookie_file = _get_cookie_file()
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
