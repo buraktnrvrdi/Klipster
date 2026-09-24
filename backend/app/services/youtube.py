@@ -103,6 +103,16 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         raise VideoUrlError("Geçerli bir video linki gir (http:// veya https:// ile başlamalı)")
     _assert_safe_url(url)
 
+    # Playlist/mix parametrelerini temizle - sadece video ID'si kalsın.
+    # list= ve start_radio= parametreleri bazen format secimini bozuyor.
+    parsed = urlparse(url)
+    if parsed.hostname and "youtube" in parsed.hostname:
+        from urllib.parse import parse_qs, urlencode
+        qs = parse_qs(parsed.query, keep_blank_values=True)
+        clean_qs = {k: v for k, v in qs.items() if k in ("v",)}
+        if clean_qs:
+            url = parsed._replace(query=urlencode(clean_qs, doseq=True)).geturl()
+
     out_dir.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(out_dir).free < MIN_FREE_DISK_BYTES:
         raise VideoUrlError("Sunucuda şu an yeterli depolama alanı yok - lütfen daha sonra tekrar dene")
@@ -125,10 +135,13 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     _ATTEMPTS = [
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"},
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+         "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"format": "bestvideo+bestaudio/best"},
+        {"format": "bestvideo+bestaudio/best",
+         "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
         {"format": "best"},
     ]
 
