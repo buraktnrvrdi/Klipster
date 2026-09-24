@@ -97,7 +97,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         {"format": "bv*[height<=1080]+ba/b",
          "extractor_args": {"youtube": {"player_client": ["android", "ios"]}}},
         {"format": "bv*[height<=1080]+ba/b"},
-        {"format": "b"},
+        {"format": "bv[height<=1080]+ba/b"},
     ]
 
     title = "video"

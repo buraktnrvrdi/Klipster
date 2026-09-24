@@ -364,12 +364,15 @@ def generate_ass(
                     w_end = max(active["end"], w_start + 0.05)
                 parts = []
                 for k, w in enumerate(group):
+                    word_text = w["word"].strip()
                     if k == j:
                         parts.append(
-                            f"{{\\c{highlight_color_ass}\\b1\\fscx112\\fscy112}}{w['word']}{{\\r}}"
+                            f"{{\\c{highlight_color_ass}\\b1\\fscx112\\fscy112}}{word_text}{{\\r}}"
                         )
                     else:
-                        parts.append(w["word"])
+                        parts.append(word_text)
+                    if k < len(group) - 1:
+                        parts.append(" ")
                 text = "".join(parts).strip().replace("\n", " ")
                 if not text:
                     continue
@@ -390,15 +393,18 @@ def generate_ass(
                     w_end = max(active["end"], w_start + 0.05)
                 parts = []
                 for k, w in enumerate(group):
+                    word_text = w["word"].strip()
                     if k == j:
                         parts.append(
                             f"{{\\c{highlight_color_ass}\\fscx60\\fscy60\\b1"
                             f"\\t(0,{POP_OVERSHOOT_MS},\\fscx115\\fscy115)"
                             f"\\t({POP_OVERSHOOT_MS},{POP_SETTLE_MS},\\fscx100\\fscy100)}}"
-                            f"{w['word']}{{\\r}}"
+                            f"{word_text}{{\\r}}"
                         )
                     else:
-                        parts.append(w["word"])
+                        parts.append(word_text)
+                    if k < len(group) - 1:
+                        parts.append(" ")
                 text = "".join(parts).strip().replace("\n", " ")
                 if not text:
                     continue
@@ -413,7 +419,7 @@ def generate_ass(
             # coklu satir - en garanti calisan yontem).
             start = group[0]["start"]
             end = group[-1]["end"]
-            full_text = "".join(w["word"] for w in group).strip()
+            full_text = " ".join(w["word"].strip() for w in group).strip()
             if not full_text:
                 continue
             total_dur = max(end - start, 0.01)
@@ -444,7 +450,7 @@ def generate_ass(
                 start_y = rest_y + offset_y
             start = group[0]["start"]
             end = group[-1]["end"]
-            text = "".join(w["word"] for w in group).strip().replace("\n", " ")
+            text = " ".join(w["word"].strip() for w in group).strip().replace("\n", " ")
             if not text:
                 continue
             move_tag = f"\\move({rest_x},{start_y},{rest_x},{rest_y},0,{slide_ms})"
@@ -455,26 +461,12 @@ def generate_ass(
         else:
             start = group[0]["start"]
             end = group[-1]["end"]
-            text = "".join(w["word"] for w in group).strip().replace("\n", " ")
+            text = " ".join(w["word"].strip() for w in group).strip().replace("\n", " ")
             if not text:
                 continue
             lines.append(f"Dialogue: 0,{_format_ass_time(start)},{_format_ass_time(end)},Default,,0,0,0,,{text}")
-    # Kelimeler arası boşluk artır: her dialogue satırının text kısmına \fsp3 ekle
-    spaced_lines = []
-    for line in lines:
-        if line.startswith("Dialogue:"):
-            parts = line.split(",,", 1)
-            if len(parts) == 2:
-                text_part = parts[1]
-                if text_part.startswith("{"):
-                    # Mevcut override bloğuna fsp ekle
-                    text_part = text_part.replace("{", "{\\fsp3", 1)
-                else:
-                    text_part = "{\\fsp3}" + text_part
-                line = parts[0] + ",," + text_part
-        spaced_lines.append(line)
     header = _ass_header(style, subtitle_color=subtitle_color, position=position, aspect=aspect)
-    ass_path.write_text(header + "\n".join(spaced_lines), encoding="utf-8")
+    ass_path.write_text(header + "\n".join(lines), encoding="utf-8")
 
 
 def chunk_words(words: list, style: str = DEFAULT_STYLE) -> list[dict]:
