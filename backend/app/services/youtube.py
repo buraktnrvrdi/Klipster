@@ -134,32 +134,30 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     # player_skip=["webpage"] => web sayfasini cekmeyi atlar, "page needs to be reloaded"
     # bot-detection hatasini engeller. _no_cookie=True olan denemelerden cookiefile kaldirilir.
     _FMT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+    _FMT_COMBINED = "best[height<=1080]/best"
     _ATTEMPTS = [
-        # Web clientlar - cookie varsa cok daha guvenilir
+        # tv_embedded ve mweb cookie ile bot detection'i geciyor; ancak ayrik stream
+        # sunmadigi icin _FMT yerine birlesik format kullanilmali.
+        {"format": _FMT_COMBINED,
+         "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        {"format": _FMT_COMBINED,
+         "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
+        # Web clientlar - cookie ile bazen calisir
         {"format": _FMT},
         {"format": _FMT,
          "extractor_args": {"youtube": {"player_client": ["web_creator"]}}},
-        {"format": _FMT,
-         "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        {"format": _FMT,
-         "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        # Android/iOS + cookie + player_skip: datacenter IP'lerde cookie gerekiyor
-        {"format": _FMT,
-         "extractor_args": {"youtube": {"player_client": ["android"],
-                                        "player_skip": ["webpage"]}}},
-        {"format": _FMT,
-         "extractor_args": {"youtube": {"player_client": ["ios"],
-                                        "player_skip": ["webpage"]}}},
-        {"format": _FMT,
-         "extractor_args": {"youtube": {"player_client": ["android_vr"],
-                                        "player_skip": ["webpage"]}}},
-        # Cookie'siz fallback
+        # Android no-cookie + player_skip: bot-detection bypass
         {"format": _FMT,
          "_no_cookie": True,
          "extractor_args": {"youtube": {"player_client": ["android"],
                                         "player_skip": ["webpage"]}}},
-        # Son care: format kisitlamasi olmadan
+        {"format": _FMT,
+         "_no_cookie": True,
+         "extractor_args": {"youtube": {"player_client": ["ios"],
+                                        "player_skip": ["webpage"]}}},
+        # Son care
         {"format": "best",
+         "_no_cookie": True,
          "extractor_args": {"youtube": {"player_client": ["android"],
                                         "player_skip": ["webpage"]}}},
     ]
