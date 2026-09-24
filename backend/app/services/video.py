@@ -37,56 +37,49 @@ FILLER_WORDS = {
 STYLE_PRESETS = {
     "klasik": {
         "label": "Klasik",
-        "chunk_size": 4,
+        "chunk_size": 3,
         "style_line": (
-            "Style: Default,Arial,64,&H00FFFFFF,&H00000000,&H00000000,"
+            "Style: Default,Arial,72,&H00FFFFFF,&H00000000,&H00000000,"
             "-1,0,1,4,0,2,60,60,140,1"
         ),
     },
     "vurgu": {
         "label": "Vurgulu (enerjik)",
         "chunk_size": 2,
-        # turuncu, daha kalin, biraz daha buyuk
         "style_line": (
-            "Style: Default,Arial,78,&H0026B4F9,&H00000000,&H00000000,"
+            "Style: Default,Arial,84,&H0026B4F9,&H00000000,&H00000000,"
             "-1,0,3,5,0,2,50,50,150,1"
         ),
     },
     "minimal": {
         "label": "Minimal",
-        "chunk_size": 5,
+        "chunk_size": 3,
         "style_line": (
-            "Style: Default,Arial,52,&H00FFFFFF,&H00202020,&H00000000,"
+            "Style: Default,Arial,64,&H00FFFFFF,&H00202020,&H00000000,"
             "0,0,1,2,1,2,80,80,110,1"
         ),
     },
     "kalin": {
         "label": "Kalın (TikTok tarzı)",
         "chunk_size": 2,
-        # buyuk, kalin, sari metin + kalin siyah kontur/golge - test sirasinda
-        # BorderStyle=3 (opak kutu) bu ffmpeg/libass kurulumunda hic
-        # render olmadigi (altyazi tamamen görünmez kaldigi) icin bilerek
-        # BorderStyle=1 (kontur+golge) ile yapildi - kanitlanmis calisan yontem.
         "style_line": (
-            "Style: Default,Arial,88,&H0000FFFF,&H00000000,&H00000000,"
+            "Style: Default,Arial,92,&H0000FFFF,&H00000000,&H00000000,"
             "-1,0,1,5,2,2,40,40,150,1"
         ),
     },
     "editorial": {
         "label": "Editöryel (dergi tarzı)",
-        "chunk_size": 6,
-        # ince serif font, dusuk profilli, zarif bir dergi alt yazisi hissi
+        "chunk_size": 3,
         "style_line": (
-            "Style: Default,DejaVu Serif,50,&H00FFFFFF,&H00000000,&H00000000,"
+            "Style: Default,DejaVu Serif,60,&H00FFFFFF,&H00000000,&H00000000,"
             "0,0,1,1,0,2,100,100,130,1"
         ),
     },
     "vintage": {
         "label": "Vintage (retro)",
-        "chunk_size": 3,
-        # krem/sepya renkli serif metin, koyu kahverengi kontur - eski film hissi
+        "chunk_size": 2,
         "style_line": (
-            "Style: Default,DejaVu Serif,58,&H00B3DEF5,&H000F213B,&H00000000,"
+            "Style: Default,DejaVu Serif,66,&H00B3DEF5,&H000F213B,&H00000000,"
             "0,0,1,3,2,2,70,70,130,1"
         ),
     },
@@ -515,7 +508,7 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
         s, e = keep_intervals[0]
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c", "copy", str(raw_path),
+            "-c", "copy", "-avoid_negative_ts", "make_zero", str(raw_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg kesme adiminda hata verdi:\n" + result.stderr[-2000:])
@@ -526,7 +519,7 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
         seg_path = out_dir / f"{name}_seg{i}.mp4"
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            "-c", "copy", str(seg_path),
+            "-c", "copy", "-avoid_negative_ts", "make_zero", str(seg_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg segment kesme adiminda hata verdi:\n" + result.stderr[-2000:])
