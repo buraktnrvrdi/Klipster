@@ -135,10 +135,16 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     # bot-detection hatasini engeller. _no_cookie=True olan denemelerden cookiefile kaldirilir.
     _FMT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
     _ATTEMPTS = [
-        # mweb cookie ile bot detection'i geciyor - format kisitlamasi olmadan dene
+        # mweb + cookie + player_skip: bot detection geciliyor, SABR experiment'i
+        # webpage config'inden geldiği icin player_skip ile devre disi birakiliyor
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/best",
+         "extractor_args": {"youtube": {"player_client": ["mweb"],
+                                        "player_skip": ["webpage"]}}},
         {"format": "best",
-         "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        {"format": "best[height<=1080]/best",
+         "extractor_args": {"youtube": {"player_client": ["mweb"],
+                                        "player_skip": ["webpage"]}}},
+        # mweb cookie ile - SABR olabilir ama dene
+        {"format": "best",
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
         # Diger web clientlar
         {"format": _FMT},
