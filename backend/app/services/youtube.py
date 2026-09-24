@@ -130,20 +130,9 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
 
-    # ios/android client'lari PO token gerektirmiyor; tv_embedded fallback olarak.
-    # Double-request sorununu onlemek icin metadata+download tek extract_info
-    # cagrisiyla yapiliyor (download=True). Sure kontrolu match_filter ile.
-    def _duration_check(info, *, incomplete):
-        duration = info.get("duration")
-        if duration and duration > MAX_DURATION_SECONDS:
-            return (
-                f"Bu video çok uzun ({int(duration // 60)} dakika). "
-                f"En fazla {MAX_DURATION_SECONDS // 3600} saatlik videolar desteklenir."
-            )
-        return None
-
-    _BASE_OPTS["match_filter"] = _duration_check
-
+    # ios/android client'lari PO token gerektirmiyor.
+    # extract_info (download=False) + ydl.download() iki adimli yaklasim -
+    # download=True ile match_filter kombinasyonu bazi clientlarda sorun cikariyor.
     _ATTEMPTS = [
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["ios"]}}},
@@ -165,26 +154,24 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
         ydl_opts = {**_BASE_OPTS, **extra}
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if info is None:
-                    last_error = "Video bilgisi alinamadi"
-                    continue
-                # playlist sarici varsa gercek video bilgisini al
-                if "entries" in info:
-                    info = info["entries"][0] if info["entries"] else info
+                info = ydl.extract_info(url, download=False)
+                duration = info.get("duration") or 0
+                if duration and duration > MAX_DURATION_SECONDS:
+                    raise VideoUrlError(
+                        f"Bu video çok uzun ({int(duration // 60)} dakika). "
+                        f"En fazla {MAX_DURATION_SECONDS // 3600} saatlik videolar desteklenir."
+                    )
                 title = info.get("title") or "video"
                 height = info.get("height") or "?"
                 fmt = info.get("format") or "?"
                 logger.info("[yt-dlp indirme] %s | cozunurluk=%s | format=%s", url, height, fmt)
+                ydl.download([url])
             last_error = None
             break
         except VideoUrlError:
             raise
         except yt_dlp.utils.DownloadError as e:
             err = str(e)
-            # match_filter'dan gelen sure hatasi VideoUrlError'a donustur
-            if "çok uzun" in err or "dakika" in err:
-                raise VideoUrlError(err.split("ERROR:")[-1].strip())
             logger.warning("[yt-dlp deneme hatasi] %s: %s", url, err[:200])
             last_error = err
             continue

@@ -1,4 +1,4 @@
-# build: 2026-09-24
+# build: 2026-09-24b
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
@@ -11,7 +11,7 @@ pydantic==2.9.2
 requests==2.32.3
 Pillow>=10.4.0
 bcrypt>=4.1.0
-yt-dlp
+yt-dlp>=2024.12.13
 opencv-python-headless==4.10.0.84
 boto3>=1.35.0
 psycopg2-binary>=2.9.0
