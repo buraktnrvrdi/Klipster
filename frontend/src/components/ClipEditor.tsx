@@ -35,7 +35,6 @@ type Clip = {
   subtitle_animation?: string;
   highlight_color?: string;
   smart_crop?: boolean;
-  auto_zoom?: boolean;
 };
 
 type JobDetail = {
@@ -49,7 +48,6 @@ type JobDetail = {
   subtitle_animation?: string;
   highlight_color?: string;
   smart_crop?: boolean;
-  auto_zoom?: boolean;
 };
 
 type RenderOptions = {
@@ -457,7 +455,6 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
   const [clipAnimation, setClipAnimation] = useState("statik");
   const [clipHighlightColor, setClipHighlightColor] = useState(KARAOKE_HIGHLIGHT);
   const [clipSmartCrop, setClipSmartCrop] = useState(true);
-  const [clipAutoZoom, setClipAutoZoom] = useState(true);
   const [previewTick, setPreviewTick] = useState(0);
 
   // Kenar cubugundaki animasyon onizlemesini (pop/daktilo/kayan) donguye
@@ -540,7 +537,6 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
         setClipAnimation(c.subtitle_animation ?? jobData.subtitle_animation ?? "statik");
         setClipHighlightColor(c.highlight_color ?? jobData.highlight_color ?? KARAOKE_HIGHLIGHT);
         setClipSmartCrop(c.smart_crop ?? jobData.smart_crop ?? true);
-        setClipAutoZoom(c.auto_zoom ?? jobData.auto_zoom ?? true);
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Yüklenemedi");
       } finally {
@@ -603,7 +599,6 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
           subtitle_animation: clipAnimation,
           highlight_color: clipHighlightColor,
           smart_crop: clipSmartCrop,
-          auto_zoom: clipAutoZoom,
         }),
       });
       const data = await res.json();
@@ -980,18 +975,6 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
               </label>
               <p className="text-[11px] text-zinc-500 mt-1">
                 Klip boyunca kırpmayı konuşan kişinin yüzüne göre otomatik ayarlar
-              </p>
-              <label className="mt-2.5 flex items-center gap-2 text-xs font-medium text-zinc-400">
-                <input
-                  type="checkbox"
-                  checked={clipAutoZoom}
-                  onChange={(e) => setClipAutoZoom(e.target.checked)}
-                  className="h-4 w-4 accent-red-500"
-                />
-                Otomatik yakınlaştırma
-              </label>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Altyazı değiştikçe kısa &quot;punch-in&quot; zoom vurguları ekler
               </p>
             </div>
 

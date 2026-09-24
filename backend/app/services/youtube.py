@@ -3,6 +3,7 @@ video indirme. Boylece kullanici bilgisayarindan dosya yuklemek yerine bir
 video linki yapistirarak da ayni klip uretim hattini calistirabilir - sanki
 bilgisayarindan yuklemis gibi (bkz. app/main.py _start_processing_job)."""
 import ipaddress
+import logging
 import os
 import re
 import shutil
@@ -11,6 +12,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yt_dlp
+
+logger = logging.getLogger(__name__)
 
 # Bariz bos/alakasiz girdileri erken elemek icin hizli bir on kontrol - yt-dlp
 # zaten desteklemedigi bir url'de kendi (daha az anlasilir) hatasini firlatir.
@@ -119,7 +122,7 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
             raise
         except yt_dlp.utils.DownloadError as e:
             err = str(e)
-            print(f"[yt-dlp deneme hatasi] {url}: {err[:200]}")
+            logger.warning("[yt-dlp deneme hatasi] %s: %s", url, err[:200])
             last_error = err
             continue
         except Exception as e:

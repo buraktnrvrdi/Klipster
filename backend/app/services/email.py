@@ -4,10 +4,13 @@ Railway SMTP portlarini bloke ettigi icin HTTP API tek calisma yontemi.
 RESEND_API_KEY env var'i tanimli degilse e-postayi gercekten gondermez,
 icerigi loglara yazar - gelistirme sirasinda linkler terminalden okunabilir.
 """
+import logging
 import os
 
 import requests
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -19,7 +22,7 @@ EMAIL_CONFIGURED = bool(RESEND_API_KEY)
 
 def send_email(to: str, subject: str, body: str) -> bool:
     if not EMAIL_CONFIGURED:
-        print(f"[e-posta devre disi - RESEND_API_KEY tanimli degil] Kime: {to}\nKonu: {subject}\n{body}\n")
+        logger.info("[e-posta devre disi] Kime: %s | Konu: %s\n%s", to, subject, body)
         return False
 
     try:
@@ -30,9 +33,9 @@ def send_email(to: str, subject: str, body: str) -> bool:
             timeout=10,
         )
         if resp.status_code >= 400:
-            print(f"[e-posta gonderim hatasi] {to}: {resp.status_code} {resp.text}")
+            logger.error("[e-posta gonderim hatasi] %s: %s %s", to, resp.status_code, resp.text)
             return False
         return True
     except Exception as e:
-        print(f"[e-posta gonderim hatasi] {to}: {e}")
+        logger.error("[e-posta gonderim hatasi] %s: %s", to, e)
         return False

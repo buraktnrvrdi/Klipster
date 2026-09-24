@@ -937,7 +937,6 @@ export default function AppPage() {
   const [style, setStyle] = useState("klasik");
   const [removeFillers, setRemoveFillers] = useState(true);
   const [smartCrop, setSmartCrop] = useState(true);
-  const [autoZoom, setAutoZoom] = useState(true);
   const [clipCount, setClipCount] = useState(5);
   const [durationPreset, setDurationPreset] = useState("orta");
   const [renderOptions, setRenderOptions] = useState<RenderOptions>(FALLBACK_RENDER_OPTIONS);
@@ -1145,7 +1144,6 @@ export default function AppPage() {
         setCurrentSubtitleAnimation(jobData.subtitle_animation || "statik");
     setCurrentSubtitleHighlightColor(jobData.highlight_color || "#FFEB3B");
         setSmartCrop(jobData.smart_crop !== undefined ? jobData.smart_crop : true);
-        setAutoZoom(jobData.auto_zoom !== undefined ? jobData.auto_zoom : true);
         clearInterval(poll);
         fetch(`${API_URL}/api/auth/me`, { headers: authHeaders(token) }).then((r) => r.json()).then(setMe);
         fetch(`${API_URL}/api/jobs`, { headers: authHeaders(token) }).then((r) => r.json()).then(setHistory);
@@ -1178,7 +1176,6 @@ export default function AppPage() {
         style,
         remove_fillers: removeFillers,
         smart_crop: smartCrop,
-        auto_zoom: autoZoom,
         subtitle_color: subtitleColor,
         subtitle_position: subtitlePosition,
         aspect,
@@ -1201,7 +1198,6 @@ export default function AppPage() {
       formData.append("style", style);
       formData.append("remove_fillers", String(removeFillers));
       formData.append("smart_crop", String(smartCrop));
-      formData.append("auto_zoom", String(autoZoom));
       formData.append("subtitle_color", subtitleColor);
       formData.append("subtitle_position", subtitlePosition);
       formData.append("aspect", aspect);
@@ -1442,19 +1438,6 @@ export default function AppPage() {
               />
               Akıllı kadraj (yüz takibi) — Klip boyunca kırpmayı konuşan
               kişinin yüzüne göre otomatik ayarlar
-            </label>
-          </div>
-
-          <div className="w-full flex flex-col sm:flex-row gap-3 text-left">
-            <label className="flex-1 flex items-center gap-2 text-xs font-medium text-zinc-400">
-              <input
-                type="checkbox"
-                checked={autoZoom}
-                onChange={(e) => setAutoZoom(e.target.checked)}
-                className="h-4 w-4 accent-red-500"
-              />
-              Otomatik yakınlaştırma — Altyazı değiştikçe kısa &quot;punch-in&quot;
-              zoom vurguları ekler
             </label>
           </div>
 

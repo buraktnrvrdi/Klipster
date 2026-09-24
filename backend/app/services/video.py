@@ -519,13 +519,11 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
     """Keep araliklarini ayri ayri kesip concat eder; tek aralik varsa direkt tek kesim yapar."""
     raw_path = out_dir / f"{name}_raw.mp4"
 
-    _ENCODE_FLAGS = ["-c:v", "libx264", "-threads", "2", "-c:a", "aac", "-preset", "fast"]
-
     if len(keep_intervals) == 1:
         s, e = keep_intervals[0]
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            *_ENCODE_FLAGS, str(raw_path),
+            "-c", "copy", str(raw_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg kesme adiminda hata verdi:\n" + result.stderr[-2000:])
@@ -536,7 +534,7 @@ def _extract_segments(input_path: str, keep_intervals: list[tuple[float, float]]
         seg_path = out_dir / f"{name}_seg{i}.mp4"
         result = subprocess.run([
             "ffmpeg", "-y", "-ss", str(s), "-i", input_path, "-t", str(e - s),
-            *_ENCODE_FLAGS, str(seg_path),
+            "-c", "copy", str(seg_path),
         ], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError("ffmpeg segment kesme adiminda hata verdi:\n" + result.stderr[-2000:])
@@ -724,9 +722,6 @@ def _build_smart_crop_x_expr(keyframes: list[tuple[float, float]]) -> str:
     return f"clip({expr}-out_w/2,0,in_w-out_w)"
 
 
-# Otomatik yakinlastirma (auto-zoom / "punch-in") icin varsayilan ayarlar -
-# altyazi grubu (chunk) degistikce kisa bir zoom-in "vurgu" yapip yumusakca
-# eski olceğine geri doner (Submagic/CapCut gibi araclarda yaygin bir efekt).
 _FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
@@ -736,65 +731,6 @@ _FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
     "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
 ]
-
-AUTO_ZOOM_AMOUNT = 0.14  # tepe noktasinda ekstra buyutme orani (%14)
-AUTO_ZOOM_DECAY_SEC = 0.45  # tepeden 1.0 olceğine donme suresi (saniye)
-AUTO_ZOOM_MIN_GAP_SEC = 1.3  # iki vurgu arasinda olmasi gereken en az sure - surekli/rahatsiz edici zoom'u onler
-AUTO_ZOOM_MAX_PULSES = 40  # ffmpeg ifadesinin asiri uzamamasi icin ust sinir
-
-
-def _get_video_fps(path: str) -> str:
-    """ffprobe ile bir videonun kare hizini 'pay/payda' (ör. '30000/1001')
-    formatinda okur - zoompan filtresine TAM olarak kaynagin kare hizini
-    vermek icin (aksi halde zoompan'in kendi varsayilan fps'i kaynaktan
-    farkli olursa kare kopyalanip/dusurulur, bu da video suresini degistirip
-    sese (audio -c:a copy ile aynen korunuyor) gore kaymaya yol acar)."""
-    result = subprocess.run(
-        [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", path,
-        ],
-        capture_output=True, text=True,
-    )
-    fps = result.stdout.strip()
-    return fps if fps and "/" in fps else "30"
-
-
-def _compute_auto_zoom_pulses(remapped_words: list, style: str, clip_duration: float) -> list[float]:
-    """Altyazi gruplarinin (chunk) baslangic zamanlarindan, aralarinda en az
-    AUTO_ZOOM_MIN_GAP_SEC olacak sekilde seyreltilmis bir "zoom vurgusu"
-    zaman listesi uretir - boylece her altyazi degisiminde degil, makul
-    araliklarla zoom pulsu tetiklenir."""
-    chunks = chunk_words(remapped_words, style=style)
-    pulses: list[float] = []
-    last = -1e9
-    for c in chunks:
-        t = c["start"]
-        if t >= clip_duration - 0.2:
-            break
-        if t - last >= AUTO_ZOOM_MIN_GAP_SEC:
-            pulses.append(t)
-            last = t
-        if len(pulses) >= AUTO_ZOOM_MAX_PULSES:
-            break
-    return pulses
-
-
-def _build_auto_zoom_expr(pulses: list[float]) -> str:
-    """(zoompan'in 'time' degiskenini kullanarak) her vurgu zamaninda 1'den
-    (1+AUTO_ZOOM_AMOUNT)'a aniden ziplayip, sonrasinda AUTO_ZOOM_DECAY_SEC
-    icinde dogrusal olarak 1'e geri donen bir zoom ifadesi uretir. Vurgular
-    AUTO_ZOOM_MIN_GAP_SEC kadar arayla seyreltildigi icin pratikte ayni anda
-    en fazla bir tanesi aktif olur, bu yuzden katkilari toplamak (yerine
-    max almak) yeterli ve daha basit bir ifadeye karsilik gelir."""
-    if not pulses:
-        return "1"
-    terms = "+".join(
-        f"if(lt(time,{t:.3f}),0,max(0,{AUTO_ZOOM_AMOUNT}*(1-(time-{t:.3f})/{AUTO_ZOOM_DECAY_SEC})))"
-        for t in pulses
-    )
-    return f"(1+{terms})"
-
 
 def make_vertical_clip(
     input_path: str,
@@ -811,7 +747,6 @@ def make_vertical_clip(
     animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = KARAOKE_HIGHLIGHT_HEX,
     smart_crop: bool = True,
-    auto_zoom: bool = True,
 ) -> Path:
     """Videodan bir klip keser (dolgu kelime/uzun sessizlik varsa temizler),
     secilen en-boy oranina kirpar ve altyazi ekler.
@@ -821,13 +756,7 @@ def make_vertical_clip(
     bkz. detect_smart_crop_keyframes). Yuz guvenilir sekilde bulunamazsa ya da
     tespit/ifade uretimi herhangi bir sekilde hata verirse SESSIZCE eski sabit
     merkez-kirpma davranisina (crop=ih*ratio:ih, varsayilan x=(in_w-out_w)/2)
-    geri doner - akilli kadraj hicbir zaman klip uretimini bozmamali.
-
-    auto_zoom=True ise, altyazi gruplari degistikce kisa "punch-in" zoom
-    vurgulari eklenir (bkz. _compute_auto_zoom_pulses/_build_auto_zoom_expr,
-    zoompan filtresiyle uygulanir). Kelime/zaman verisi yetersizse ya da
-    zoompan adimi herhangi bir sekilde hata verirse SESSIZCE zoomsuz devam
-    edilir - ayni smart_crop gibi, bu efekt de asla klip uretimini bozmamali."""
+    geri doner - akilli kadraj hicbir zaman klip uretimini bozmamali."""
     out_dir.mkdir(parents=True, exist_ok=True)
     ass_path = out_dir / f"{name}.ass"
     final_path = out_dir / f"{name}.mp4"
@@ -870,60 +799,18 @@ def make_vertical_clip(
     else:
         crop_step = f"crop={crop_dims}"
 
-    zoom_step = None
-    if auto_zoom:
-        try:
-            pulses = _compute_auto_zoom_pulses(remapped_words, style, end - start)
-            if pulses:
-                zoom_expr = _build_auto_zoom_expr(pulses)
-                fps = _get_video_fps(str(raw_path))
-                # zoompan'in kendi 's' secenegi hem zoom/pan'i hem final
-                # olcegi (scale) tek adimda uyguluyor - crop_step zaten
-                # dogru en-boy oranina kirptigi icin burada sadece merkezden
-                # simetrik yakinlastirma yeterli (x/y varsayilan merkez).
-                # d=1 + kaynagin TAM fps'i: kare kopyalama/dusurme olmadan
-                # 1:1 kare eslemesi, boylece video suresi (dolayisiyla ses
-                # senkronu, ses ayrica -c:a copy ile degismiyor) korunur.
-                # Zoompan yarı çözünürlükte çalışır (~4x daha hızlı, zoom
-                # efekti için kalite farkı göze çarpmaz), sonra scale ile
-                # hedef çözünürlüğe getirilir.
-                half_w = aspect_preset['res_x'] // 2
-                half_h = aspect_preset['res_y'] // 2
-                zoom_step = (
-                    f"scale={half_w}:{half_h},"
-                    f"zoompan=z='{zoom_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':"
-                    f"s={half_w}x{half_h}:fps={fps}:d=1,"
-                    f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']}:flags=bilinear"
-                )
-        except Exception:
-            # Zoom hesaplama/ifade uretimi herhangi bir nedenle patlarsa
-            # sessizce zoomsuz devam et - smart_crop ile ayni felsefe.
-            zoom_step = None
-
     scale_step = f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},setsar=1"
-    if zoom_step:
-        vf = f"{crop_step},{zoom_step},setsar=1,subtitles=filename={ass_path.name}"
-    else:
-        vf = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
+    vf = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
 
-    vf_fallback = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
-
-    def _run_ffmpeg(vf_filter: str):
-        try:
-            return subprocess.run([
-                "ffmpeg", "-y", "-i", raw_path.name, "-vf", vf_filter,
-                "-c:v", "libx264", "-threads", "2",
-                "-c:a", "copy", "-preset", "fast",
-                final_path.name,
-            ], capture_output=True, text=True, cwd=str(out_dir), timeout=600)
-        except subprocess.TimeoutExpired:
-            return None
-
-    result = _run_ffmpeg(vf)
-    if (result is None or result.returncode != 0) and zoom_step:
-        # zoompan bazı kaynak videolarda (garip SAR, OOM, timeout) başarısız olur —
-        # zoomsuz sürümle yeniden dene
-        result = _run_ffmpeg(vf_fallback)
+    try:
+        result = subprocess.run([
+            "ffmpeg", "-y", "-i", raw_path.name, "-vf", vf,
+            "-c:v", "libx264", "-crf", "18", "-threads", "2",
+            "-c:a", "copy", "-preset", "medium",
+            final_path.name,
+        ], capture_output=True, text=True, cwd=str(out_dir), timeout=600)
+    except subprocess.TimeoutExpired:
+        result = None
     if result is None:
         raise RuntimeError("ffmpeg altyazi adiminda zaman asimi (600s)")
     if result.returncode != 0:
