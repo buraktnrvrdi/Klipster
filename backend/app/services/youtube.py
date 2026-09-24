@@ -115,6 +115,9 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
                         f"En fazla {MAX_DURATION_SECONDS // 3600} saatlik videolar desteklenir."
                     )
                 title = info.get("title") or "video"
+                height = info.get("height") or "?"
+                fmt = info.get("format") or "?"
+                logger.info("[yt-dlp indirme] %s | cozunurluk=%s | format=%s", url, height, fmt)
                 ydl.download([url])
             last_error = None
             break

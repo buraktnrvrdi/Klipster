@@ -784,7 +784,7 @@ def make_vertical_clip(
     else:
         crop_step = f"crop={crop_dims}"
 
-    scale_step = f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']},setsar=1"
+    scale_step = f"scale={aspect_preset['res_x']}:{aspect_preset['res_y']}:flags=lanczos,setsar=1"
     vf = f"{crop_step},{scale_step},subtitles=filename={ass_path.name}"
 
     try:
