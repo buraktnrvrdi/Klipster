@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 const sora = Sora({
   variable: "--font-sora",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: "500",
 });
 
 export const metadata: Metadata = {
