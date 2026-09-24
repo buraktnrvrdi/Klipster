@@ -130,19 +130,20 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
 
-    # ios/android client'lari PO token gerektirmiyor.
-    # extract_info (download=False) + ydl.download() iki adimli yaklasim -
-    # download=True ile match_filter kombinasyonu bazi clientlarda sorun cikariyor.
+    # ios/android client'lari cookie desteklemiyor (yt-dlp uyarisiyla skip eder).
+    # Cookie'li denemeler icin web-based clientlar; cookie'siz fallback icin ios/android.
+    # _no_cookie=True olan denemelerden cookiefile kaldirilir.
     _ATTEMPTS = [
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-         "extractor_args": {"youtube": {"player_client": ["ios"]}}},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-         "extractor_args": {"youtube": {"player_client": ["android"]}}},
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"},
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
         {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        {"format": "bestvideo+bestaudio/best",
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+         "_no_cookie": True,
+         "extractor_args": {"youtube": {"player_client": ["android"]}}},
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+         "_no_cookie": True,
          "extractor_args": {"youtube": {"player_client": ["ios"]}}},
         {"format": "best"},
     ]
@@ -151,7 +152,11 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     last_error = None
 
     for extra in _ATTEMPTS:
+        extra = dict(extra)
+        no_cookie = extra.pop("_no_cookie", False)
         ydl_opts = {**_BASE_OPTS, **extra}
+        if no_cookie:
+            ydl_opts.pop("cookiefile", None)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
