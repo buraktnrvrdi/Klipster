@@ -120,19 +120,16 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
 
-    # Deneme sırası: farklı format+client kombinasyonları.
-    # Fallback olarak bile en az 720p zorlanır - kalitesiz /b kullanılmaz.
+    # Deneme sırası: geniş format fallback'leri - codec kisitlamasi yok,
+    # merge_output_format=mp4 zaten ciktiyi mp4'e donusturuyor.
     _ATTEMPTS = [
-        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"},
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["mweb"]}}},
-        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
-         "extractor_args": {"youtube": {"player_client": ["web"]}}},
-        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
+        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
          "extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
-         "extractor_args": {"youtube": {"player_client": ["android", "ios"]}}},
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height>=720]"},
-        {"format": "best[height>=720]/best[height>=480]"},
+        {"format": "bestvideo+bestaudio/best"},
+        {"format": "best"},
     ]
 
     title = "video"
