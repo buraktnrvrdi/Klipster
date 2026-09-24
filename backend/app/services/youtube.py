@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
@@ -69,6 +70,49 @@ class VideoUrlError(Exception):
 
 
 _cookie_file_path: str | None = None
+_po_token_cache: str | None = None
+
+
+def _get_visitor_id_from_cookie(cookie_file: str) -> str | None:
+    """Netscape cookie dosyasindan VISITOR_INFO1_LIVE degerini ceker."""
+    try:
+        with open(cookie_file) as f:
+            for line in f:
+                if "VISITOR_INFO1_LIVE" in line:
+                    parts = line.strip().split("\t")
+                    if len(parts) >= 7:
+                        return parts[-1]
+    except Exception:
+        pass
+    return None
+
+
+def _get_po_token(cookie_file: str) -> str | None:
+    """get_pot.mjs ile mweb icin cold-start PO token uretir (cache'li)."""
+    global _po_token_cache
+    if _po_token_cache:
+        return _po_token_cache
+    visitor_id = _get_visitor_id_from_cookie(cookie_file)
+    if not visitor_id:
+        return None
+    script = Path(__file__).parent.parent.parent / "get_pot.mjs"
+    if not script.exists():
+        logger.warning("get_pot.mjs bulunamadi: %s", script)
+        return None
+    try:
+        result = subprocess.run(
+            ["node", str(script), visitor_id],
+            capture_output=True, text=True, timeout=10
+        )
+        token = result.stdout.strip()
+        if token.startswith("mweb+"):
+            _po_token_cache = token
+            logger.info("PO token uretildi (visitor_id=%s...)", visitor_id[:6])
+            return token
+        logger.warning("get_pot.mjs beklenmedik cikti: %s", token[:100])
+    except Exception as e:
+        logger.warning("PO token uretme hatasi: %s", e)
+    return None
 
 
 def _get_cookie_file() -> str | None:
@@ -130,22 +174,29 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     if cookie_file:
         _BASE_OPTS["cookiefile"] = cookie_file
 
-    # Deneme sirasi: once cookie+web clientlar, sonra cookie gerektirmeyen mobile.
-    # player_skip=["webpage"] => web sayfasini cekmeyi atlar, "page needs to be reloaded"
-    # bot-detection hatasini engeller. _no_cookie=True olan denemelerden cookiefile kaldirilir.
+    # PO token: SABR modunda YouTube indirilebilir format URL vermez.
+    # Cold-start token, BotGuard challenge gerektirmez; sadece visitor_id lazim.
+    po_token = _get_po_token(cookie_file) if cookie_file else None
+
     _FMT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-    _ATTEMPTS = [
-        # mweb + cookie + missing_pot: SABR formatlarini da listele ve indirmeyi dene
-        {"format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-         "extractor_args": {"youtube": {"player_client": ["mweb"],
-                                        "formats": ["missing_pot"]}}},
+    _ATTEMPTS = []
+
+    if po_token:
+        # PO token varsa mweb ile yuksek kaliteli indirme
+        _ATTEMPTS += [
+            {"format": _FMT,
+             "extractor_args": {"youtube": {"player_client": ["mweb"],
+                                            "po_token": [po_token]}}},
+            {"format": "best",
+             "extractor_args": {"youtube": {"player_client": ["mweb"],
+                                            "po_token": [po_token]}}},
+        ]
+
+    _ATTEMPTS += [
+        # PO token olmadan mweb (SABR olmayan videolarda calisir)
         {"format": "best",
          "extractor_args": {"youtube": {"player_client": ["mweb"],
                                         "formats": ["missing_pot"]}}},
-        # mweb cookie ile player_skip
-        {"format": "best",
-         "extractor_args": {"youtube": {"player_client": ["mweb"],
-                                        "player_skip": ["webpage"]}}},
         # Diger web clientlar
         {"format": _FMT},
         {"format": _FMT,
