@@ -13,15 +13,38 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # --- Groq API ---
 
 def _extract_audio(video_path: str) -> str:
-    """Video dosyasından ses çıkarır, Groq'un 25MB limitini aşmamak için."""
+    """Video dosyasından ses çıkarır, Groq'un 25MB limitini aşmamak için.
+    WebM/ekran kaydı dosyalari timestamp sorunlari yaratabilir; bunu
+    genpts + ignore_err flaglariyle asiyoruz."""
     import subprocess
     import tempfile
     audio_path = tempfile.mktemp(suffix=".mp3")
-    subprocess.run([
-        "ffmpeg", "-y", "-i", video_path,
+    cmd_base = [
+        "ffmpeg", "-y",
+        "-fflags", "+genpts",
+        "-err_detect", "ignore_err",
+        "-i", video_path,
         "-vn", "-ar", "16000", "-ac", "1", "-b:a", "32k",
         audio_path,
-    ], capture_output=True, check=True)
+    ]
+    result = subprocess.run(cmd_base, capture_output=True)
+    if result.returncode == 0:
+        return audio_path
+    # Fallback: once ses akisini kopyala, sonra encode et
+    tmp_path = tempfile.mktemp(suffix=".ogg")
+    subprocess.run([
+        "ffmpeg", "-y", "-fflags", "+genpts", "-i", video_path,
+        "-vn", "-c:a", "copy", tmp_path,
+    ], capture_output=True)
+    result2 = subprocess.run([
+        "ffmpeg", "-y", "-i", tmp_path,
+        "-ar", "16000", "-ac", "1", "-b:a", "32k", audio_path,
+    ], capture_output=True)
+    if result2.returncode != 0:
+        raise RuntimeError(
+            f"Ses çıkarma başarısız (kod {result2.returncode}):\n"
+            + result2.stderr.decode(errors="replace")[-1000:]
+        )
     return audio_path
 
 
