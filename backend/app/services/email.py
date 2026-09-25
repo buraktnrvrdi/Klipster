@@ -21,6 +21,7 @@ EMAIL_CONFIGURED = bool(RESEND_API_KEY)
 
 
 def send_email(to: str, subject: str, body: str) -> bool:
+    logger.info("[e-posta] API_KEY=%s FROM=%s TO=%s", bool(RESEND_API_KEY), FROM_EMAIL, to)
     if not EMAIL_CONFIGURED:
         logger.info("[e-posta devre disi] Kime: %s | Konu: %s\n%s", to, subject, body)
         return False
@@ -32,6 +33,7 @@ def send_email(to: str, subject: str, body: str) -> bool:
             json={"from": FROM_EMAIL, "to": [to], "subject": subject, "text": body},
             timeout=10,
         )
+        logger.info("[e-posta sonuc] %s: %s %s", to, resp.status_code, resp.text[:200])
         if resp.status_code >= 400:
             logger.error("[e-posta gonderim hatasi] %s: %s %s", to, resp.status_code, resp.text)
             return False
