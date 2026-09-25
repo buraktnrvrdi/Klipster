@@ -452,12 +452,13 @@ async def register(payload: AuthPayload, request: Request):
         if existing:
             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
         cur = conn.execute(
-            "INSERT INTO users (email, password_hash, plan, email_verified) VALUES (%s, %s, 'ucretsiz', 1) RETURNING id",
+            "INSERT INTO users (email, password_hash, plan, email_verified) VALUES (%s, %s, 'ucretsiz', 0) RETURNING id",
             (email, hash_password(payload.password)),
         )
         conn.commit()
         user_id = cur.fetchone()["id"]
 
+    _send_verification_email(email, user_id)
     token = create_session(user_id)
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
