@@ -206,7 +206,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["*"],
     allow_credentials=True,
 )
 app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
