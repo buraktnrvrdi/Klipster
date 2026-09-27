@@ -458,7 +458,7 @@ async def register(payload: AuthPayload, request: Request):
         conn.commit()
         user_id = cur.fetchone()["id"]
 
-    _send_verification_email(email, user_id)
+    _send_verification_email(user_id, email)
     token = create_session(user_id)
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
