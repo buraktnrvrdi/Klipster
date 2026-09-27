@@ -25,7 +25,6 @@ function GirisForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
-  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,17 +52,11 @@ function GirisForm() {
     }
   }
 
-  async function handleResendVerification() {
-    try {
-      await fetch(`${API_URL}/api/auth/resend-verification-public`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      setResent(true);
-    } catch {
-      // sessizce yoksay
+  function handleGoToVerification() {
+    if (inviteToken) {
+      localStorage.setItem("klipster_pending_invite", inviteToken);
     }
+    router.push(`/email-dogrula?email=${encodeURIComponent(email)}`);
   }
 
   return (
@@ -127,10 +120,10 @@ function GirisForm() {
                 {needsVerification && (
                   <button
                     type="button"
-                    onClick={handleResendVerification}
+                    onClick={handleGoToVerification}
                     className="mt-1.5 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors"
                   >
-                    {resent ? "Gönderildi ✓" : "Doğrulama e-postasını tekrar gönder"}
+                    Doğrulama koduyla devam et
                   </button>
                 )}
               </div>

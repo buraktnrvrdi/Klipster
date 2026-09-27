@@ -358,7 +358,8 @@ class ResetPasswordPayload(BaseModel):
 
 
 class VerifyEmailPayload(BaseModel):
-    token: str
+    email: str
+    code: str
 
 
 def _user_public(row: dict) -> dict:
@@ -373,18 +374,25 @@ def _user_public(row: dict) -> dict:
 
 
 def _send_verification_email(user_id: int, email: str) -> None:
+    """Kullanıcıya 6 haneli, tek kullanımlık bir doğrulama kodu gönderir -
+    e-postadaki bir linke tıklamak yerine bu kodu siteye geri girmesi gerekir.
+    Linkin gittiği domain'e (DNS/CORS/vs.) bağımlı kalmamak ve e-posta
+    güvenlik tarayıcılarının linki kullanıcıdan önce tüketmesi gibi
+    sorunları ortadan kaldırmak için tercih edildi."""
+    code = f"{secrets.randbelow(1_000_000):06d}"
     token = secrets.token_urlsafe(32)
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO email_verifications (token, user_id) VALUES (%s, %s)", (token, user_id)
+            "INSERT INTO email_verifications (token, user_id, code) VALUES (%s, %s, %s)",
+            (token, user_id, code),
         )
         conn.commit()
-    link = f"{FRONTEND_URL}/email-dogrula?token={token}"
     send_email(
         email,
         "Klipster - E-posta adresini doğrula",
-        f"Merhaba,\n\nKlipster hesabını doğrulamak için aşağıdaki linke tıkla:\n{link}\n\n"
-        f"Bu linki sen istemediysen bu e-postayı yok sayabilirsin.",
+        f"Merhaba,\n\nKlipster hesabını doğrulamak için bu kodu kullan:\n\n{code}\n\n"
+        f"Bu kod {EMAIL_VERIFICATION_TTL_HOURS} saat geçerlidir. Bu kodu sen istemediysen "
+        f"bu e-postayı yok sayabilirsin.",
     )
 
 
@@ -553,31 +561,45 @@ async def resend_verification(current_user: dict = Depends(get_current_user)):
 
 
 @app.post("/api/auth/verify-email")
-async def verify_email(payload: VerifyEmailPayload):
+async def verify_email(payload: VerifyEmailPayload, request: Request):
+    email = payload.email.strip().lower()
+    code = payload.code.strip()
+    # 6 haneli kod, uzun rastgele token'a gore çok daha kucuk bir olasilik
+    # uzayina sahip - deneme yanilma (brute-force) ile tahmin edilebilmesini
+    # engellemek icin hem IP hem e-posta bazinda sinirlandiriyoruz.
+    _rate_limiter.check(f"verify-email:{_client_ip(request)}", limit=10, window_seconds=900)
+    _rate_limiter.check(f"verify-email:{email}", limit=10, window_seconds=900)
+
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT user_id, created_at FROM email_verifications WHERE token = %s", (payload.token,)
+            """
+            SELECT ev.token, ev.user_id, ev.created_at
+            FROM email_verifications ev
+            JOIN users u ON u.id = ev.user_id
+            WHERE u.email = %s AND ev.code = %s
+            ORDER BY ev.created_at DESC LIMIT 1
+            """,
+            (email, code),
         ).fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Doğrulama linki geçersiz veya süresi dolmuş")
+            raise HTTPException(status_code=404, detail="Kod geçersiz")
 
         created_at = datetime.fromisoformat(row["created_at"]).replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) - created_at > timedelta(hours=EMAIL_VERIFICATION_TTL_HOURS):
-            conn.execute("DELETE FROM email_verifications WHERE token = %s", (payload.token,))
+            conn.execute("DELETE FROM email_verifications WHERE token = %s", (row["token"],))
             conn.commit()
-            raise HTTPException(
-                status_code=410,
-                detail="Doğrulama linkinin süresi dolmuş - yeni bir link talep et",
-            )
+            raise HTTPException(status_code=410, detail="Kodun süresi dolmuş - yeni bir kod talep et")
 
         user_id = row["user_id"]
         conn.execute("UPDATE users SET email_verified = 1 WHERE id = %s", (user_id,))
-        conn.execute("DELETE FROM email_verifications WHERE token = %s", (payload.token,))
+        # Ayni kullanici icin bekleyen tum eski kodlari da temizle (ör. birden
+        # fazla "tekrar gonder" denemesinden kalanlar).
+        conn.execute("DELETE FROM email_verifications WHERE user_id = %s", (user_id,))
         conn.commit()
         user_row = dict(conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone())
 
-    # Dogrulama linkine tiklamak, kayit sirasinda hic acilmamis olan oturumu
-    # burada acar - kullanici boylece tekrar giris yapmadan direkt icer girer.
+    # Kod dogrulamasi, kayit sirasinda hic acilmamis olan oturumu burada acar -
+    # kullanici boylece tekrar giris yapmadan direkt icer girer.
     session_token = create_session(user_id)
     return {"ok": True, "token": session_token, "user": _user_public(user_row)}
 
