@@ -24,7 +24,7 @@ def _extract_audio(video_path: str) -> str:
         "-fflags", "+genpts",
         "-err_detect", "ignore_err",
         "-i", video_path,
-        "-vn", "-ar", "16000", "-ac", "1", "-b:a", "32k",
+        "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k",
         audio_path,
     ]
     result = subprocess.run(cmd_base, capture_output=True)
@@ -38,7 +38,7 @@ def _extract_audio(video_path: str) -> str:
     ], capture_output=True)
     result2 = subprocess.run([
         "ffmpeg", "-y", "-i", tmp_path,
-        "-ar", "16000", "-ac", "1", "-b:a", "32k", audio_path,
+        "-ar", "16000", "-ac", "1", "-b:a", "64k", audio_path,
     ], capture_output=True)
     if result2.returncode != 0:
         raise RuntimeError(
@@ -62,6 +62,12 @@ def _transcribe_groq(video_path: str):
                 language=WHISPER_LANGUAGE,
                 response_format="verbose_json",
                 timestamp_granularities=["word", "segment"],
+                # temperature=0: en olasi (deterministik) kelimeyi secer -
+                # varsayilan (0'dan buyuk) sicaklik, modelin daha "yaratici"/
+                # rastgele tahminlere kaymasina izin verir, bu da hizli/kisik
+                # sesli veya muzik ustune soylenen sozlerde kelime atlama
+                # ihtimalini artirabiliyor.
+                temperature=0,
             )
     finally:
         try:
