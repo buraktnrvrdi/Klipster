@@ -51,6 +51,7 @@ Backend servisinde **Variables** sekmesine git ve `.env` dosyandaki değerlerin 
 - `AI_PROVIDER` (anthropic veya gemini, hangisini kullanıyorsan)
 - `ANTHROPIC_API_KEY` veya `GEMINI_API_KEY`
 - `GROQ_API_KEY` → console.groq.com'dan ücretsiz alınır, transkript doğruluğunu belirgin şekilde artırır (önerilir - bkz. `.env.example`)
+- `YOUTUBE_COOKIES_B64` → link ile YouTube video yükleme için gerekli, yoksa "Sign in to confirm you're not a bot" hatası alınır (nasıl alınacağı `.env.example`'da anlatılıyor)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
 - `FRONTEND_URL` → Vercel'e deploy ettikten sonra alacağın adres (örn: `https://klipster.vercel.app`) - bu adımı 3. adımdan sonra geri gelip dolduracaksın
 - `ALLOWED_ORIGINS` → gerekirse ekstra izinli adresler, virgülle ayrılmış (www'li/www'siz her iki adres de dahil olmalı)
