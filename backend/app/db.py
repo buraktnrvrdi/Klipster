@@ -102,6 +102,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS email_verifications (
             token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
+            code TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
@@ -193,6 +194,7 @@ def init_db():
         "ALTER TABLE jobs ADD COLUMN highlight_color TEXT",
         "ALTER TABLE jobs ADD COLUMN smart_crop INTEGER DEFAULT 1",
         "ALTER TABLE jobs ADD COLUMN auto_zoom INTEGER DEFAULT 1",
+        "ALTER TABLE email_verifications ADD COLUMN code TEXT",
     ]
     for stmt in alter_stmts:
         try:

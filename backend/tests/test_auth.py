@@ -101,9 +101,44 @@ def test_forgot_password_does_not_leak_whether_email_exists(client):
     assert r1.json()["message"] == r2.json()["message"]
 
 
-def test_verify_email_rejects_unknown_token(client):
-    r = client.post("/api/auth/verify-email", json={"token": "gecersiz-token"})
+def test_verify_email_rejects_unknown_code(client):
+    r = client.post(
+        "/api/auth/verify-email", json={"email": "yok-boyle-biri@example.com", "code": "000000"}
+    )
     assert r.status_code == 404
+
+
+def test_verify_email_with_correct_code_marks_account_verified(client, monkeypatch):
+    import re
+
+    captured = {}
+
+    def _capture_email(to, subject, body):
+        captured["to"] = to
+        captured["body"] = body
+        return True
+
+    monkeypatch.setattr(main, "send_email", _capture_email)
+
+    email = "test-auth-verify-code@example.com"
+    r = client.post("/api/auth/register", json={"email": email, "password": "sifre123"})
+    assert r.status_code == 200
+
+    match = re.search(r"\b(\d{6})\b", captured["body"])
+    assert match, "dogrulama e-postasinda 6 haneli kod bulunamadi"
+    code = match.group(1)
+
+    # Yanlis kod reddedilmeli.
+    r = client.post("/api/auth/verify-email", json={"email": email, "code": "000000"})
+    assert r.status_code in (404, 429)
+
+    r = client.post("/api/auth/verify-email", json={"email": email, "code": code})
+    assert r.status_code == 200
+    session_token = r.json()["token"]
+    assert session_token
+
+    r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {session_token}"})
+    assert r.json()["user"]["email_verified"] is True
 
 
 def test_login_rate_limit_blocks_after_threshold(client):

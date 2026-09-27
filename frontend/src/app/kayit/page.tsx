@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Mail } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 
@@ -18,13 +17,13 @@ export default function KayitPage() {
 }
 
 function KayitForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [registered, setRegistered] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,13 +40,14 @@ function KayitForm() {
         setError(data.detail || "Kayıt başarısız");
         return;
       }
-      // Hesap olusturuldu ama henuz oturum acilmadi - once e-postayi
-      // dogrulamasi gerekiyor. Bir ekip davetinden geldiyse, dogrulama
-      // sonrasi davete geri donebilmesi icin token'i sakliyoruz.
+      // Hesap olusturuldu ama henuz oturum acilmadi - once e-postaya
+      // gonderilen 6 haneli kodu girmesi gerekiyor. Bir ekip davetinden
+      // geldiyse, dogrulama sonrasi davete geri donebilmesi icin token'i
+      // sakliyoruz.
       if (inviteToken) {
         localStorage.setItem("klipster_pending_invite", inviteToken);
       }
-      setRegistered(true);
+      router.push(`/email-dogrula?email=${encodeURIComponent(email)}`);
     } catch {
       setError("Sunucuya ulaşılamadı, backend çalışıyor mu kontrol et");
     } finally {
@@ -70,26 +70,6 @@ function KayitForm() {
         </Link>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
-          {registered ? (
-            <>
-              <div className="h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-red-400" />
-              </div>
-              <h1 className="mt-4 text-xl font-semibold font-display tracking-tight">E-postanı kontrol et</h1>
-              <p className="mt-2 text-sm text-zinc-400">
-                <span className="text-zinc-200">{email}</span> adresine bir doğrulama bağlantısı
-                gönderdik. Hesabını kullanmaya başlamak için gelen kutunu (ve spam klasörünü) kontrol
-                edip bağlantıya tıklaman gerekiyor.
-              </p>
-              <Link
-                href="/giris"
-                className="mt-6 inline-block bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition"
-              >
-                Girişe dön
-              </Link>
-            </>
-          ) : (
-            <>
           <h1 className="text-2xl font-semibold font-display tracking-tight">Klipster&apos;a katıl</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Zaten hesabın var mı?{" "}
@@ -143,8 +123,6 @@ function KayitForm() {
               Kredi kartı gerekmez · Ücretsiz planla ayda 2 video
             </p>
           </form>
-            </>
-          )}
         </div>
       </div>
     </main>

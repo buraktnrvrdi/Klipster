@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Mail, XCircle } from "lucide-react";
+import { Mail } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 
@@ -17,48 +17,68 @@ export default function EmailDogrulaPage() {
   );
 }
 
-type Status = "checking" | "success" | "error";
-
 function EmailDogrulaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const [status, setStatus] = useState<Status>("checking");
+  const email = searchParams.get("email") || "";
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // React StrictMode gelistirme modunda useEffect'i mount'ta bilerek iki kere
-  // calistirir - bu ref olmadan token ikinci istekte zaten silinmis oldugu
-  // icin yanlislikla "gecersiz" hatasi gorunurdu (istek aslinda basarili olsa bile).
-  const requestedRef = useRef<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setError("Doğrulama bağlantısı geçersiz - token eksik");
-      return;
+  function goNext() {
+    const pendingInvite = localStorage.getItem("klipster_pending_invite");
+    if (pendingInvite) {
+      localStorage.removeItem("klipster_pending_invite");
+      router.push(`/davet?token=${pendingInvite}`);
+    } else {
+      router.push("/app");
     }
-    if (requestedRef.current === token) return;
-    requestedRef.current = token;
+  }
 
-    fetch(`${API_URL}/api/auth/verify-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.detail || "Doğrulanamadı");
-        // Dogrulama linkine tiklamak artik otomatik giris de yapiyor (backend
-        // token dondurur) - kullaniciyi tekrar giris yapmaya zorlamiyoruz.
-        if (data.token) {
-          localStorage.setItem("klipster_token", data.token);
-        }
-        setStatus("success");
-      })
-      .catch((e: Error) => {
-        setStatus("error");
-        setError(e.message);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
       });
-  }, [token]);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Doğrulanamadı");
+        return;
+      }
+      if (data.token) {
+        localStorage.setItem("klipster_token", data.token);
+      }
+      goNext();
+    } catch {
+      setError("Sunucuya ulaşılamadı, backend çalışıyor mu kontrol et");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResending(true);
+    setError(null);
+    try {
+      await fetch(`${API_URL}/api/auth/resend-verification-public`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setResent(true);
+    } catch {
+      // sessizce yoksay
+    } finally {
+      setResending(false);
+    }
+  }
 
   return (
     <main className="noir-selection relative min-h-screen bg-black text-white flex items-center justify-center px-6 overflow-hidden">
@@ -69,54 +89,72 @@ function EmailDogrulaContent() {
         <div className="absolute inset-0 noir-grid" />
       </div>
 
-      <div className="relative z-10 w-full max-w-sm text-center">
-        <Link href="/" className="flex items-center gap-2 w-fit mx-auto">
-          <Logo className="h-14" />
+      <div className="relative z-10 w-full max-w-sm">
+        <Link href="/" className="flex items-center justify-center">
+          <Logo className="h-24" />
         </Link>
 
-        <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl">
-          {status === "checking" ? (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 shadow-2xl text-center">
+          {!email ? (
             <>
-              <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-red-400 animate-pulse" />
-              </div>
-              <p className="mt-4 text-sm text-zinc-400">Doğrulanıyor...</p>
-            </>
-          ) : status === "success" ? (
-            <>
-              <div className="mx-auto h-12 w-12 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-green-400" />
-              </div>
-              <h1 className="mt-4 text-lg font-display font-semibold">E-postan doğrulandı</h1>
-              <p className="mt-2 text-sm text-zinc-400">Artık hesabının tüm özelliklerine erişebilirsin.</p>
-              <button
-                onClick={() => {
-                  const pendingInvite = localStorage.getItem("klipster_pending_invite");
-                  if (pendingInvite) {
-                    localStorage.removeItem("klipster_pending_invite");
-                    router.push(`/davet?token=${pendingInvite}`);
-                  } else {
-                    router.push("/profil");
-                  }
-                }}
-                className="mt-6 bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition"
+              <h1 className="text-xl font-semibold font-display tracking-tight">Bağlantı geçersiz</h1>
+              <p className="mt-2 text-sm text-zinc-400">
+                Bu sayfaya bir e-posta adresi olmadan ulaştın.
+              </p>
+              <Link
+                href="/kayit"
+                className="mt-6 inline-block bg-white/10 hover:bg-white/15 text-white px-6 py-2.5 rounded-full font-semibold text-sm transition"
               >
-                Profilime git
-              </button>
+                Kayıt sayfasına dön
+              </Link>
             </>
           ) : (
             <>
               <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                <XCircle className="h-5 w-5 text-red-400" />
+                <Mail className="h-5 w-5 text-red-400" />
               </div>
-              <h1 className="mt-4 text-lg font-display font-semibold">Doğrulanamadı</h1>
-              <p className="mt-2 text-sm text-red-400">{error}</p>
-              <Link
-                href="/profil"
-                className="mt-6 inline-block bg-white/10 hover:bg-white/15 text-white px-6 py-2.5 rounded-full font-semibold text-sm transition"
+              <h1 className="mt-4 text-xl font-semibold font-display tracking-tight">E-postanı doğrula</h1>
+              <p className="mt-2 text-sm text-zinc-400">
+                <span className="text-zinc-200">{email}</span> adresine 6 haneli bir kod gönderdik.
+                Gelen kutunu (ve spam klasörünü) kontrol edip kodu aşağıya gir.
+              </p>
+
+              <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 text-left">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-center text-lg tracking-[0.5em] text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
+                  placeholder="000000"
+                />
+
+                {error && (
+                  <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || code.length !== 6}
+                  className="bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
+                >
+                  {loading ? "Doğrulanıyor..." : "Doğrula"}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="mt-4 text-xs font-semibold text-zinc-400 hover:text-white transition-colors disabled:opacity-40"
               >
-                Profilime git
-              </Link>
+                {resent ? "Kod tekrar gönderildi ✓" : resending ? "Gönderiliyor..." : "Kodu tekrar gönder"}
+              </button>
             </>
           )}
         </div>
