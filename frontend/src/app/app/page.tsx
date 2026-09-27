@@ -623,7 +623,7 @@ function ClipCard({
           )}
           {clip.subtitles_en_url && (
             <a
-              href={`${API_URL}${clip.subtitles_en_url}`}
+              href={resolveUrl(clip.subtitles_en_url)}
               download
               className="flex items-center gap-1 text-zinc-400 hover:text-white font-medium transition-colors"
             >
@@ -671,7 +671,7 @@ function ClipCard({
               {(clip.translations ?? []).map((t) => (
                 <a
                   key={t.language}
-                  href={`${API_URL}${t.url}`}
+                  href={resolveUrl(t.url)}
                   download
                   className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium transition-colors"
                 >
