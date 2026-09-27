@@ -91,9 +91,11 @@ def _get_po_token(cookie_file: str) -> str | None:
     """get_pot.mjs ile mweb icin cold-start PO token uretir (cache'li)."""
     global _po_token_cache
     if _po_token_cache:
+        logger.info("PO token onbellekten kullanildi")
         return _po_token_cache
     visitor_id = _get_visitor_id_from_cookie(cookie_file)
     if not visitor_id:
+        logger.warning("Cookie dosyasinda VISITOR_INFO1_LIVE bulunamadi, PO token uretilemiyor")
         return None
     script = Path(__file__).parent.parent.parent / "get_pot.mjs"
     if not script.exists():
@@ -119,6 +121,7 @@ def _get_cookie_file() -> str | None:
     """YOUTUBE_COOKIES_B64 env var'indan cookie dosyasini olusturur (tek seferlik)."""
     global _cookie_file_path
     if _cookie_file_path and os.path.exists(_cookie_file_path):
+        logger.info("YouTube cookie dosyasi onbellekten kullanildi: %s", _cookie_file_path)
         return _cookie_file_path
     # Tum bosluk/satir sonu karakterlerini kaldir (sadece bas/son degil,
     # ARADAKI de) - `base64` komutu (ozellikle Mac'te) ciktiyi birden fazla
@@ -239,12 +242,18 @@ def download_video(url: str, out_dir: Path, job_id: str) -> tuple[Path, str]:
     title = "video"
     last_error = None
 
-    for extra in _ATTEMPTS:
+    for attempt_num, extra in enumerate(_ATTEMPTS, start=1):
         extra = dict(extra)
         no_cookie = extra.pop("_no_cookie", False)
         ydl_opts = {**_BASE_OPTS, **extra}
         if no_cookie:
             ydl_opts.pop("cookiefile", None)
+        client = extra.get("extractor_args", {}).get("youtube", {}).get("player_client", ["varsayilan"])
+        has_po_token = bool(extra.get("extractor_args", {}).get("youtube", {}).get("po_token"))
+        logger.info(
+            "[yt-dlp deneme %d/%d] client=%s cookie=%s po_token=%s",
+            attempt_num, len(_ATTEMPTS), client, bool(ydl_opts.get("cookiefile")), has_po_token,
+        )
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
