@@ -47,11 +47,13 @@ Bu adımı atlarsan her yeni deploy'da yüklenen videolar ve veritabanı (kullan
 
 Backend servisinde **Variables** sekmesine git ve `.env` dosyandaki değerlerin aynısını buraya tek tek ekle:
 
+- `DATABASE_URL` → **ZORUNLU**, yoksa backend hiç ayağa kalkmaz. Projene bir Postgres servisi eklediysen (Railway → New → Database → Add PostgreSQL), backend servisinin Variables sekmesinde "Add variable reference" ile o Postgres'in `DATABASE_URL`'ine bağlanabilirsin
 - `AI_PROVIDER` (anthropic veya gemini, hangisini kullanıyorsan)
 - `ANTHROPIC_API_KEY` veya `GEMINI_API_KEY`
+- `GROQ_API_KEY` → console.groq.com'dan ücretsiz alınır, transkript doğruluğunu belirgin şekilde artırır (önerilir - bkz. `.env.example`)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
 - `FRONTEND_URL` → Vercel'e deploy ettikten sonra alacağın adres (örn: `https://klipster.vercel.app`) - bu adımı 3. adımdan sonra geri gelip dolduracaksın
-- `ALLOWED_ORIGINS` → gerekirse ekstra izinli adresler, virgülle ayrılmış
+- `ALLOWED_ORIGINS` → gerekirse ekstra izinli adresler, virgülle ayrılmış (www'li/www'siz her iki adres de dahil olmalı)
 
 Değişkenleri kaydettikten sonra Railway otomatik olarak yeniden build alıp deploy edecek.
 
