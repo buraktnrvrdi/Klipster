@@ -18,9 +18,39 @@ const sora = Sora({
   weight: "500",
 });
 
+const SITE_URL = "https://klipster.com.tr";
+const TITLE = "Klipster — Videolarını Viral Kliplere Dönüştür";
+const DESCRIPTION =
+  "Yapay zeka ile uzun videolarını (podcast, röportaj, canlı yayın) altyazılı, dikey (9:16) kısa kliplere dönüştür. TikTok, Instagram Reels ve YouTube Shorts için hazır.";
+
 export const metadata: Metadata = {
-  title: "Klipster — Videolarını Viral Kliplere Dönüştür",
-  description: "Yapay zeka ile uzun videolarını altyazılı, dikey kısa kliplere dönüştür.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: TITLE,
+    template: "%s | Klipster",
+  },
+  description: DESCRIPTION,
+  keywords: [
+    "klip üretici", "video klip", "viral klip", "TikTok klip", "Instagram Reels",
+    "YouTube Shorts", "yapay zeka video düzenleme", "altyazı ekleme", "dikey video",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "tr_TR",
+    url: SITE_URL,
+    siteName: "Klipster",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [{ url: "/logo-v2.png", width: 673, height: 627, alt: "Klipster" }],
+  },
+  twitter: {
+    card: "summary",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/logo-v2.png"],
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({
