@@ -136,6 +136,9 @@ def init_db():
             org_id TEXT,
             subtitle_animation TEXT,
             highlight_color TEXT,
+            overlay_url TEXT,
+            overlay_position TEXT,
+            overlay_scale TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
@@ -192,6 +195,9 @@ def init_db():
         "ALTER TABLE jobs ADD COLUMN subtitle_animation TEXT",
         "ALTER TABLE jobs ADD COLUMN highlight_color TEXT",
         "ALTER TABLE jobs ADD COLUMN auto_zoom INTEGER DEFAULT 1",
+        "ALTER TABLE jobs ADD COLUMN overlay_url TEXT",
+        "ALTER TABLE jobs ADD COLUMN overlay_position TEXT",
+        "ALTER TABLE jobs ADD COLUMN overlay_scale TEXT",
         "ALTER TABLE email_verifications ADD COLUMN code TEXT",
     ]
     for stmt in alter_stmts:

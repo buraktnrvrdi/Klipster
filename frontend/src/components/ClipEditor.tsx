@@ -14,9 +14,12 @@ import {
   Wand2,
   AlignCenter,
   Monitor,
+  Image as ImageIcon,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const resolveUrl = (url: string | null | undefined) =>
+  !url ? undefined : url.startsWith("http") ? url : `${API_URL}${url}`;
 
 type Clip = {
   title: string;
@@ -34,6 +37,9 @@ type Clip = {
   aspect?: string;
   subtitle_animation?: string;
   highlight_color?: string;
+  overlay_url?: string | null;
+  overlay_position?: string;
+  overlay_scale?: string;
 };
 
 type JobDetail = {
@@ -46,6 +52,9 @@ type JobDetail = {
   aspect?: string;
   subtitle_animation?: string;
   highlight_color?: string;
+  overlay_url?: string | null;
+  overlay_position?: string;
+  overlay_scale?: string;
 };
 
 type RenderOptions = {
@@ -53,6 +62,8 @@ type RenderOptions = {
   positions: { id: string; label: string }[];
   colors: { id: string; label: string; hex: string }[];
   animations: { id: string; label: string }[];
+  overlayPositions: { id: string; label: string }[];
+  overlayScales: { id: string; label: string }[];
   credits: { base: number; per_clip: number };
 };
 
@@ -91,6 +102,17 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "pop", label: "Zıplayan (pop)" },
     { id: "daktilo", label: "Daktilo (harf harf)" },
     { id: "kayan", label: "Kayarak giren" },
+  ],
+  overlayPositions: [
+    { id: "sol-ust", label: "Sol Üst" },
+    { id: "sag-ust", label: "Sağ Üst" },
+    { id: "sol-alt", label: "Sol Alt" },
+    { id: "sag-alt", label: "Sağ Alt" },
+  ],
+  overlayScales: [
+    { id: "kucuk", label: "Küçük" },
+    { id: "orta", label: "Orta" },
+    { id: "buyuk", label: "Büyük" },
   ],
   credits: { base: 4, per_clip: 2 },
 };
@@ -452,6 +474,12 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
   const [clipAspect, setClipAspect] = useState("9:16");
   const [clipAnimation, setClipAnimation] = useState("statik");
   const [clipHighlightColor, setClipHighlightColor] = useState(KARAOKE_HIGHLIGHT);
+  const [clipOverlayUrl, setClipOverlayUrl] = useState<string | null>(null);
+  const [clipOverlayPosition, setClipOverlayPosition] = useState("sag-ust");
+  const [clipOverlayScale, setClipOverlayScale] = useState("orta");
+  const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
+  const [newLogoPreview, setNewLogoPreview] = useState<string | null>(null);
+  const [overlayRemoved, setOverlayRemoved] = useState(false);
   const [previewTick, setPreviewTick] = useState(0);
 
   // Kenar cubugundaki animasyon onizlemesini (pop/daktilo/kayan) donguye
@@ -533,6 +561,9 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
         setClipAspect(c.aspect ?? jobData.aspect ?? "9:16");
         setClipAnimation(c.subtitle_animation ?? jobData.subtitle_animation ?? "statik");
         setClipHighlightColor(c.highlight_color ?? jobData.highlight_color ?? KARAOKE_HIGHLIGHT);
+        setClipOverlayUrl(c.overlay_url ?? jobData.overlay_url ?? null);
+        setClipOverlayPosition(c.overlay_position ?? jobData.overlay_position ?? "sag-ust");
+        setClipOverlayScale(c.overlay_scale ?? jobData.overlay_scale ?? "orta");
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Yüklenemedi");
       } finally {
@@ -582,19 +613,45 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
     setSaving(true);
     setSaveError(null);
     try {
+      // overlay_url: gonderilmezse (undefined) mevcut logo korunur, "" gonderilirse
+      // kaldirilir, yeni bir dosya secildiyse once yuklenip donen url gonderilir.
+      let overlayUrl: string | undefined;
+      if (newLogoFile) {
+        const logoFormData = new FormData();
+        logoFormData.append("file", newLogoFile);
+        const logoRes = await fetch(`${API_URL}/api/upload-logo`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: logoFormData,
+        });
+        const logoData = await logoRes.json();
+        if (!logoRes.ok) {
+          setSaveError(logoData.detail || "Logo yüklenemedi");
+          return;
+        }
+        overlayUrl = logoData.url;
+      } else if (overlayRemoved) {
+        overlayUrl = "";
+      }
+
+      const body: Record<string, unknown> = {
+        start,
+        end,
+        style: clipStyle,
+        subtitle_color: clipColor,
+        subtitle_position: clipPosition,
+        aspect: clipAspect,
+        subtitle_animation: clipAnimation,
+        highlight_color: clipHighlightColor,
+        overlay_position: clipOverlayPosition,
+        overlay_scale: clipOverlayScale,
+      };
+      if (overlayUrl !== undefined) body.overlay_url = overlayUrl;
+
       const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${clipIndex}/retrim`, {
         method: "POST",
         headers: { ...authHeaders(token), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          start,
-          end,
-          style: clipStyle,
-          subtitle_color: clipColor,
-          subtitle_position: clipPosition,
-          aspect: clipAspect,
-          subtitle_animation: clipAnimation,
-          highlight_color: clipHighlightColor,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -959,6 +1016,80 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
               <p className="text-[11px] text-zinc-500 mt-1.5">
                 {renderOptions.aspects.find((a) => a.id === clipAspect)?.label}
               </p>
+            </div>
+
+            <div>
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">
+                <ImageIcon className="h-3.5 w-3.5" />
+                Logo / Banner
+              </h3>
+              <div className="flex items-center gap-3">
+                {(newLogoPreview || clipOverlayUrl) && !overlayRemoved ? (
+                  <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-white/10 bg-black/30 flex-shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={newLogoPreview || resolveUrl(clipOverlayUrl)}
+                      alt="Logo"
+                      className="h-full w-full object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewLogoFile(null);
+                        setNewLogoPreview(null);
+                        setOverlayRemoved(true);
+                      }}
+                      className="absolute top-0 right-0 bg-black/70 text-white text-[10px] px-1 leading-4"
+                      aria-label="Logoyu kaldır"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className="h-12 w-12 rounded-lg border border-dashed border-white/20 flex items-center justify-center text-zinc-500 text-[10px] text-center cursor-pointer hover:border-white/40 transition-colors flex-shrink-0">
+                    Ekle
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setNewLogoFile(f);
+                        setNewLogoPreview(URL.createObjectURL(f));
+                        setOverlayRemoved(false);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {(newLogoPreview || (clipOverlayUrl && !overlayRemoved)) && (
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <select
+                    value={clipOverlayPosition}
+                    onChange={(e) => setClipOverlayPosition(e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                  >
+                    {renderOptions.overlayPositions.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-black">
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={clipOverlayScale}
+                    onChange={(e) => setClipOverlayScale(e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                  >
+                    {renderOptions.overlayScales.map((s) => (
+                      <option key={s.id} value={s.id} className="bg-black">
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div>
