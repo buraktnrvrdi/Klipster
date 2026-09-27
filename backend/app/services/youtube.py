@@ -122,18 +122,26 @@ def _get_cookie_file() -> str | None:
         return _cookie_file_path
     b64 = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
     if not b64:
+        # Bu satir onemli: sessizce None donup cerezsiz denemek yerine acikca
+        # logluyoruz - aksi halde "cerez tanimlanmis ama isliyor mu" sorusu
+        # loglardan asla anlasilmiyor (bkz. "YouTube cookie dosyasi olusturuldu"
+        # satirinin hic gorunmemesi = degisken bos/okunamiyor demek).
+        logger.warning(
+            "YOUTUBE_COOKIES_B64 tanimli degil veya bos - YouTube cerezsiz denenecek, "
+            "bot korumasina takilma ihtimali yuksek"
+        )
         return None
     try:
-        data = base64.b64decode(b64)
-    except Exception:
-        logger.warning("YOUTUBE_COOKIES_B64 gecersiz base64 iceriyor, cookie kullanilmayacak")
+        data = base64.b64decode(b64, validate=True)
+    except Exception as e:
+        logger.warning("YOUTUBE_COOKIES_B64 gecersiz base64 iceriyor (%s), cookie kullanilmayacak", e)
         return None
     fd, path = tempfile.mkstemp(suffix=".txt", prefix="yt_cookies_")
     os.close(fd)
     with open(path, "wb") as f:
         f.write(data)
     _cookie_file_path = path
-    logger.info("YouTube cookie dosyasi olusturuldu: %s", path)
+    logger.info("YouTube cookie dosyasi olusturuldu: %s (%d bayt)", path, len(data))
     return path
 
 
