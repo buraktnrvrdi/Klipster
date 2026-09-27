@@ -13,6 +13,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# basicConfig cagrilmazsa Python'un "son care" (lastResort) log mekanizmasi
+# devreye girer - bu SADECE WARNING ve uzeri seviyeyi gosterir, tum
+# logger.info(...) cagrilari (uygulama genelinde - PO token/cookie/deneme
+# loglari dahil) sessizce kaybolur. Railway loglarinda bircok tani satirinin
+# hic gorunmemesinin sebebi buydu.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
