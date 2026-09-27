@@ -75,7 +75,7 @@ def test_build_keep_intervals_keeps_whole_range_without_fillers_or_silence():
 
 
 def test_build_keep_intervals_removes_long_silence_gaps():
-    # 0.6 saniyeden (max_silence varsayilani) uzun bir sessizlik var (1.0 -> 3.0),
+    # 1.1 saniyeden (max_silence varsayilani) uzun bir sessizlik var (1.0 -> 3.0),
     # keep_silence (0.12s) payi sessizligin basinda birakiliyor.
     words = [_w("Merhaba", 0.0, 1.0), _w("dunya", 3.0, 3.5)]
     keep = build_keep_intervals(words, clip_start=0.0, clip_end=3.5, remove_fillers=False)

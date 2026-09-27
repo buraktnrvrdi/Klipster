@@ -207,12 +207,21 @@ def build_keep_intervals(
     clip_start: float,
     clip_end: float,
     remove_fillers: bool = True,
-    max_silence: float = 0.6,
+    max_silence: float = 1.1,
     keep_silence: float = 0.12,
     word_pad: float = 0.03,
 ) -> list[tuple[float, float]]:
     """Klip araligi icinde 'atlanacak' (dolgu kelime / uzun sessizlik) bolgeleri
-    bulup, geriye KALACAK araliklarin listesini dondurur (orijinal video zaman eksininde)."""
+    bulup, geriye KALACAK araliklarin listesini dondurur (orijinal video zaman eksininde).
+
+    max_silence bilerek biraz toleransli tutuluyor (0.6 yerine 1.1 saniye): iki
+    kelime arasinda transkript BOSLUK gorurse (ör. konusma tanima o araliktaki
+    kelimeyi kacirdiysa - hizli/kisik sesli konusma, muzik ustune soylenen sozler
+    vb.) bunu "uzun sessizlik" sanip o bolgeyi videodan da siler - boylece bir
+    transkript hatasi, gercekte var olan konusmanin videodan kalici olarak
+    kaybolmasina donusurdu. Esigi yukseltmek, kisa (<1.1s) kacirilan kelime
+    bosluklarinin klipten silinmesini onlerken, gercekten uzun (ör. 2+ saniyelik)
+    dogal duraksamalari/sessizlikleri hala temizliyor."""
     clip_words = sorted(
         [w for w in words if clip_start <= w["start"] < clip_end],
         key=lambda w: w["start"],
@@ -499,14 +508,25 @@ _PRE_SEEK = 5.0  # dual-ss kesiminde hizli arama tamponu (saniye)
 
 
 def _ffmpeg_cut(input_path: str, s: float, e: float, out_path: Path) -> subprocess.CompletedProcess:
-    """Dual-ss teknigi ile sample-accurate kesim: hizli keyframe atlamasi + ince ayar."""
+    """Dual-ss teknigi ile kare-dogru (frame-accurate) kesim: hizli keyframe atlamasi + ince ayar.
+
+    Video akisi BILEREK yeniden kodlaniyor (-c copy DEGIL) - kesim noktasi bir
+    keyframe'e denk gelmiyorsa (GOP ortasindaysa, ki cogu zaman denk gelmez),
+    -c copy ile kesilen dosyanin ilk birkac saniyesi bir sonraki gercek keyframe'e
+    kadar oynaticida siyah/donuk gorunuyordu. Yeniden kodlama, cikti dosyasinin
+    HER ZAMAN kendi 0. karesinde bir keyframe ile baslamasini garanti eder. Nasil
+    olsa klip sonunda (make_vertical_clip) altyazi/kirpma icin ikinci bir yeniden
+    kodlama daha yapiliyor, bu yuzden burada ekstra bir kalite kaybi maliyeti yok
+    denecek kadar az."""
     fast_seek = max(0.0, s - _PRE_SEEK)
     fine_seek = s - fast_seek
     return subprocess.run([
         "ffmpeg", "-y",
         "-ss", str(fast_seek), "-i", input_path,
         "-ss", str(fine_seek), "-t", str(e - s),
-        "-c", "copy", "-avoid_negative_ts", "make_zero", str(out_path),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
+        "-avoid_negative_ts", "make_zero", str(out_path),
     ], capture_output=True, text=True)
 
 
