@@ -120,7 +120,12 @@ def _get_cookie_file() -> str | None:
     global _cookie_file_path
     if _cookie_file_path and os.path.exists(_cookie_file_path):
         return _cookie_file_path
-    b64 = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
+    # Tum bosluk/satir sonu karakterlerini kaldir (sadece bas/son degil,
+    # ARADAKI de) - `base64` komutu (ozellikle Mac'te) ciktiyi birden fazla
+    # satira bolerek uretiyor, kopyala-yapistirda bu satir sonlari degere
+    # karisiyor. validate=True ile birlikte bunlari temizlemezsek gecerli
+    # bir base64 degeri "bozuk" sanilip reddedilir.
+    b64 = "".join(os.environ.get("YOUTUBE_COOKIES_B64", "").split())
     if not b64:
         # Bu satir onemli: sessizce None donup cerezsiz denemek yerine acikca
         # logluyoruz - aksi halde "cerez tanimlanmis ama isliyor mu" sorusu
