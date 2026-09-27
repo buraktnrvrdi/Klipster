@@ -514,17 +514,19 @@ def _ffmpeg_cut(input_path: str, s: float, e: float, out_path: Path) -> subproce
     keyframe'e denk gelmiyorsa (GOP ortasindaysa, ki cogu zaman denk gelmez),
     -c copy ile kesilen dosyanin ilk birkac saniyesi bir sonraki gercek keyframe'e
     kadar oynaticida siyah/donuk gorunuyordu. Yeniden kodlama, cikti dosyasinin
-    HER ZAMAN kendi 0. karesinde bir keyframe ile baslamasini garanti eder. Nasil
-    olsa klip sonunda (make_vertical_clip) altyazi/kirpma icin ikinci bir yeniden
-    kodlama daha yapiliyor, bu yuzden burada ekstra bir kalite kaybi maliyeti yok
-    denecek kadar az."""
+    HER ZAMAN kendi 0. karesinde bir keyframe ile baslamasini garanti eder.
+
+    preset=ultrafast kullaniliyor - kalite burada onemli degil, cunku klip
+    sonunda (make_vertical_clip) altyazi/kirpma icin ikinci (asil kaliteyi
+    belirleyen) bir yeniden kodlama daha yapiliyor. Bu adimin tek amaci hizli
+    ve kare-dogru kesim, bu yuzden en hizli preset'i seciyoruz."""
     fast_seek = max(0.0, s - _PRE_SEEK)
     fine_seek = s - fast_seek
     return subprocess.run([
         "ffmpeg", "-y",
         "-ss", str(fast_seek), "-i", input_path,
         "-ss", str(fine_seek), "-t", str(e - s),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k",
         "-avoid_negative_ts", "make_zero", str(out_path),
     ], capture_output=True, text=True)

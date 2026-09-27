@@ -1199,10 +1199,20 @@ async def upload_video(
     job_id = str(uuid.uuid4())
     safe_filename = _safe_filename(file.filename)
     video_path = UPLOAD_DIR / f"{job_id}_{safe_filename}"
-    with open(video_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
 
-    return _start_processing_job(
+    def _write_upload():
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+    # Buyuk bir dosyayi diske yazmak saniyeler surebilir - bunu threadpool'a
+    # atmazsak (senkron/bloklayici sekilde burada calistirirsak) event loop'u
+    # (dolayisiyla o sirada gelen diger TUM kullanicilarin istekleri) o sure
+    # boyunca bloklardi. _start_processing_job da (ffprobe + DB sorgulari)
+    # ayni sebeple threadpool'a atiliyor.
+    await run_in_threadpool(_write_upload)
+
+    return await run_in_threadpool(
+        _start_processing_job,
         job_id, video_path, safe_filename, style, remove_fillers, clip_count, min_duration, max_duration,
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
         current_user, background_tasks,
@@ -1240,7 +1250,8 @@ async def upload_video_from_url(
     # endpoint'ler dosyayi bulamiyor (404) - kirpma editorunde video hic yuklenmiyordu.
     display_filename = video_path.name[len(job_id) + 1:]
 
-    return _start_processing_job(
+    return await run_in_threadpool(
+        _start_processing_job,
         job_id, video_path, display_filename, style, remove_fillers, payload.clip_count,
         payload.min_duration, payload.max_duration, payload.subtitle_color,
         payload.subtitle_position, payload.aspect, payload.subtitle_animation,
