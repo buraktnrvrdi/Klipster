@@ -66,9 +66,13 @@ from app.services.video import (
     DEFAULT_ASPECT,
     DEFAULT_STYLE,
     DEFAULT_HIGHLIGHT_COLOR,
+    DEFAULT_OVERLAY_POSITION,
+    DEFAULT_OVERLAY_SCALE,
     DEFAULT_SUBTITLE_ANIMATION,
     DEFAULT_SUBTITLE_COLOR,
     DEFAULT_SUBTITLE_POSITION,
+    OVERLAY_POSITIONS,
+    OVERLAY_SCALES,
     STYLE_PRESETS,
     SUBTITLE_ANIMATIONS,
     SUBTITLE_COLOR_PRESETS,
@@ -110,8 +114,10 @@ ALLOWED_ORIGINS = list(dict.fromkeys(
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "storage" / "uploads"
 OUTPUT_DIR = BASE_DIR / "storage" / "outputs"
+LOGO_DIR = OUTPUT_DIR / "logos"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+LOGO_DIR.mkdir(parents=True, exist_ok=True)
 
 init_db()
 
@@ -151,6 +157,26 @@ def _ensure_original_local(job_id: str, filename: str) -> tuple[Path, bool]:
         storage.download(key, tmp)
         return tmp, True
     return local, False  # caller will catch missing file
+
+
+def _ensure_overlay_local(overlay_value: str | None) -> tuple[Path | None, bool]:
+    """overlay_value bos ise (None/""), (None, False) doner - overlay yok demektir.
+    Deger yerel bir /files/logos/... yoluysa dogrudan diskteki karsiligini,
+    R2/B2'deki bir anahtarsa gecici bir dosyaya indirip onu dondurur. Ikinci
+    deger (is_temp) True ise, cagiran taraf isi bitince o gecici dosyayi silmeli."""
+    if not overlay_value:
+        return None, False
+    if overlay_value.startswith("/files/logos/"):
+        local = OUTPUT_DIR / overlay_value.removeprefix("/files/")
+        return (local, False) if local.exists() else (None, False)
+    if storage.is_enabled():
+        tmp = Path(tempfile.mkdtemp()) / Path(overlay_value).name
+        try:
+            storage.download(overlay_value, tmp)
+        except Exception:
+            return None, False
+        return tmp, True
+    return None, False
 
 
 def _recover_interrupted_jobs():
@@ -262,6 +288,14 @@ def _validate_render_options(
     return color, position, asp, anim, hcolor
 
 
+def _validate_overlay_options(overlay_position: str | None, overlay_scale: str | None) -> tuple[str, str]:
+    """Logo/banner bindirme konumu ve boyutu icin kullanici girdisini dogrular,
+    gecersiz/eksik deger gelirse sessizce varsayilana duser."""
+    position = overlay_position if overlay_position in OVERLAY_POSITIONS else DEFAULT_OVERLAY_POSITION
+    scale = overlay_scale if overlay_scale in OVERLAY_SCALES else DEFAULT_OVERLAY_SCALE
+    return position, scale
+
+
 def _resolve_clip_option(payload_value, is_valid, existing: dict, existing_key: str, row: dict, row_key: str, default):
     """Klip duzenleme/ekleme (mini editor) icin genel deger cozumleme sirasi:
     1) istekte gecerli bir deger gonderildiyse onu kullan,
@@ -295,6 +329,10 @@ class RetrimPayload(BaseModel):
     aspect: str | None = None
     subtitle_animation: str | None = None
     highlight_color: str | None = None
+    # overlay_url: None = degistirme, "" = kaldir, baska bir deger = yeni logo/banner
+    overlay_url: str | None = None
+    overlay_position: str | None = None
+    overlay_scale: str | None = None
 
 
 class AddClipPayload(BaseModel):
@@ -310,6 +348,9 @@ class AddClipPayload(BaseModel):
     aspect: str | None = None
     subtitle_animation: str | None = None
     highlight_color: str | None = None
+    overlay_url: str | None = None
+    overlay_position: str | None = None
+    overlay_scale: str | None = None
 
 
 class TranslateClipPayload(BaseModel):
@@ -332,6 +373,9 @@ class UploadUrlPayload(BaseModel):
     aspect: str | None = None
     subtitle_animation: str | None = None
     highlight_color: str | None = None
+    overlay_url: str | None = None
+    overlay_position: str | None = None
+    overlay_scale: str | None = None
 
 
 class PasswordPayload(BaseModel):
@@ -956,11 +1000,15 @@ def run_pipeline(
     aspect: str = DEFAULT_ASPECT,
     subtitle_animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = DEFAULT_HIGHLIGHT_COLOR,
+    overlay_url: str | None = None,
+    overlay_position: str = DEFAULT_OVERLAY_POSITION,
+    overlay_scale: str = DEFAULT_OVERLAY_SCALE,
 ):
     with _pipeline_semaphore:
         _run_pipeline_locked(
             job_id, video_path, style, remove_fillers, max_clips, min_duration, max_duration,
             subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
+            overlay_url, overlay_position, overlay_scale,
         )
 
 
@@ -977,7 +1025,11 @@ def _run_pipeline_locked(
     aspect: str,
     subtitle_animation: str,
     highlight_color: str,
+    overlay_url: str | None = None,
+    overlay_position: str = DEFAULT_OVERLAY_POSITION,
+    overlay_scale: str = DEFAULT_OVERLAY_SCALE,
 ):
+    overlay_path, overlay_is_temp = _ensure_overlay_local(overlay_url)
     try:
         _set_job(job_id, status="transcribing")
         segments, detected_language = transcribe(video_path)
@@ -1012,6 +1064,7 @@ def _run_pipeline_locked(
                 style=style, remove_fillers=remove_fillers,
                 subtitle_color=subtitle_color, position=subtitle_position, aspect=aspect,
                 animation=subtitle_animation, highlight_color=highlight_color,
+                overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
             clip_url = _upload_output(job_id, path)
@@ -1038,6 +1091,9 @@ def _run_pipeline_locked(
                 "subtitle_animation": subtitle_animation,
                 "highlight_color": highlight_color,
                 "remove_fillers": remove_fillers,
+                "overlay_url": overlay_url,
+                "overlay_position": overlay_position,
+                "overlay_scale": overlay_scale,
             })
 
         _set_job(job_id, status="done", clips_json=json.dumps(results))
@@ -1053,12 +1109,15 @@ def _run_pipeline_locked(
         # acikca soylenmezse "kredim bosa mi gitti" diye endiselenebilir,
         # bu yuzden hata mesajina bunu ekliyoruz.
         _set_job(job_id, status="error", error=f"{e} (Bu işlem için kredin harcanmadı.)")
+    finally:
+        if overlay_is_temp and overlay_path:
+            shutil.rmtree(overlay_path.parent, ignore_errors=True)
 
 
 def _resolve_clip_urls(clip: dict) -> dict:
     """Replace stored storage keys with usable (signed) URLs in a clip dict."""
     resolved = {**clip}
-    for field in ("url", "cover_url", "subtitles_en_url"):
+    for field in ("url", "cover_url", "subtitles_en_url", "overlay_url"):
         resolved[field] = storage.resolve_url(clip.get(field))
     resolved["translations"] = [
         {**t, "url": storage.resolve_url(t.get("url"))}
@@ -1083,6 +1142,9 @@ def _job_to_dict(row: dict) -> dict:
         "aspect": row.get("aspect") or DEFAULT_ASPECT,
         "subtitle_animation": row.get("subtitle_animation") or DEFAULT_SUBTITLE_ANIMATION,
         "highlight_color": row.get("highlight_color") or DEFAULT_HIGHLIGHT_COLOR,
+        "overlay_url": storage.resolve_url(row.get("overlay_url")),
+        "overlay_position": row.get("overlay_position") or DEFAULT_OVERLAY_POSITION,
+        "overlay_scale": row.get("overlay_scale") or DEFAULT_OVERLAY_SCALE,
         "credit_cost": row.get("credit_cost") or 0,
         "uploaded_by": row.get("uploaded_by_email"),
         "created_at": row["created_at"],
@@ -1103,6 +1165,9 @@ def _start_processing_job(
     aspect: str | None,
     subtitle_animation: str | None,
     highlight_color: str | None,
+    overlay_url: str | None,
+    overlay_position: str | None,
+    overlay_scale: str | None,
     current_user: dict,
     background_tasks: BackgroundTasks,
 ) -> dict:
@@ -1144,6 +1209,7 @@ def _start_processing_job(
     color, position, asp, anim, hcolor = _validate_render_options(
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
     )
+    ovl_position, ovl_scale = _validate_overlay_options(overlay_position, overlay_scale)
 
     # Kredi maliyeti: video suresi (ffprobe ile okunur) ve secilen klip
     # sayisina gore hesaplanir - bkz. app/services/credits.py.
@@ -1166,21 +1232,57 @@ def _start_processing_job(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, credit_cost, org_id)
-            VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, overlay_url, overlay_position, overlay_scale, credit_cost, org_id)
+            VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 job_id, current_user["id"], filename, style, int(remove_fillers),
-                color, position, asp, anim, hcolor, cost, org["id"] if org else None,
+                color, position, asp, anim, hcolor, overlay_url or None, ovl_position, ovl_scale,
+                cost, org["id"] if org else None,
             ),
         )
         conn.commit()
 
     background_tasks.add_task(
         run_pipeline, job_id, str(video_path), style, remove_fillers, max_clips, dur_min, dur_max,
-        color, position, asp, anim, hcolor,
+        color, position, asp, anim, hcolor, overlay_url or None, ovl_position, ovl_scale,
     )
     return {"job_id": job_id, "credit_cost": cost}
+
+
+ALLOWED_LOGO_CONTENT_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+MAX_LOGO_BYTES = 5 * 1024 * 1024  # 5MB - kucuk bir logo/banner icin fazlasiyla yeterli
+
+
+@app.post("/api/upload-logo")
+async def upload_logo(file: UploadFile, current_user: dict = Depends(get_current_user)):
+    """Klip uretiminde/duzenlemesinde bindirilecek logo/banner gorselini
+    yukler, kaydeder ve /api/upload, /api/upload-url, retrim, add-clip
+    endpoint'lerinde overlay_url olarak kullanilabilecek bir deger dondurur."""
+    ext = ALLOWED_LOGO_CONTENT_TYPES.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(status_code=400, detail="Sadece PNG, JPEG veya WEBP resim dosyaları desteklenir")
+    data = await file.read(MAX_LOGO_BYTES + 1)
+    if len(data) > MAX_LOGO_BYTES:
+        raise HTTPException(status_code=400, detail="Logo dosyası en fazla 5MB olabilir")
+    if not data:
+        raise HTTPException(status_code=400, detail="Boş dosya")
+
+    name = f"{uuid.uuid4()}.{ext}"
+    local_path = LOGO_DIR / name
+
+    def _save() -> str:
+        with open(local_path, "wb") as f:
+            f.write(data)
+        if storage.is_enabled():
+            key = f"logos/{name}"
+            url = storage.upload(local_path, key)
+            local_path.unlink(missing_ok=True)
+            return url
+        return f"/files/logos/{name}"
+
+    url = await run_in_threadpool(_save)
+    return {"url": url}
 
 
 @app.post("/api/upload")
@@ -1197,6 +1299,9 @@ async def upload_video(
     aspect: str | None = Form(None),
     subtitle_animation: str | None = Form(None),
     highlight_color: str | None = Form(None),
+    overlay_url: str | None = Form(None),
+    overlay_position: str | None = Form(None),
+    overlay_scale: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
     if shutil.disk_usage(UPLOAD_DIR).free < MIN_FREE_DISK_BYTES:
@@ -1221,6 +1326,7 @@ async def upload_video(
         _start_processing_job,
         job_id, video_path, safe_filename, style, remove_fillers, clip_count, min_duration, max_duration,
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
+        overlay_url, overlay_position, overlay_scale,
         current_user, background_tasks,
     )
 
@@ -1261,7 +1367,8 @@ async def upload_video_from_url(
         job_id, video_path, display_filename, style, remove_fillers, payload.clip_count,
         payload.min_duration, payload.max_duration, payload.subtitle_color,
         payload.subtitle_position, payload.aspect, payload.subtitle_animation,
-        payload.highlight_color, current_user, background_tasks,
+        payload.highlight_color, payload.overlay_url, payload.overlay_position,
+        payload.overlay_scale, current_user, background_tasks,
     )
 
 
@@ -1395,15 +1502,29 @@ async def retrim_clip(
         payload.highlight_color, lambda v: bool(HEX_COLOR_RE.match(v)),
         existing_clip, "highlight_color", row, "highlight_color", DEFAULT_HIGHLIGHT_COLOR,
     )
+    # overlay_url: "" = bindirmeyi kaldir, dolu bir deger = yenisiyle degistir,
+    # None (hic gonderilmemis) = mevcut klibin (yoksa isin) degerini koru.
+    if payload.overlay_url == "":
+        overlay_url = None
+    elif payload.overlay_url:
+        overlay_url = payload.overlay_url
+    else:
+        overlay_url = existing_clip.get("overlay_url") or row.get("overlay_url")
+    overlay_position, overlay_scale = _validate_overlay_options(
+        payload.overlay_position or existing_clip.get("overlay_position") or row.get("overlay_position"),
+        payload.overlay_scale or existing_clip.get("overlay_scale") or row.get("overlay_scale"),
+    )
     name = f"clip_{clip_index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
 
+    overlay_path, overlay_is_temp = _ensure_overlay_local(overlay_url)
     try:
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
+            overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
         )
         cover_path = make_cover(path, clips[clip_index].get("title", name), job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1411,6 +1532,8 @@ async def retrim_clip(
     finally:
         if _is_temp_retrim:
             shutil.rmtree(video_path.parent, ignore_errors=True)
+        if overlay_is_temp and overlay_path:
+            shutil.rmtree(overlay_path.parent, ignore_errors=True)
 
     clip_url = _upload_output(job_id, path)
     cover_url = _upload_output(job_id, cover_path) if cover_path else None
@@ -1436,6 +1559,9 @@ async def retrim_clip(
         "subtitle_animation": anim,
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
+        "overlay_url": overlay_url,
+        "overlay_position": overlay_position,
+        "overlay_scale": overlay_scale,
     }
 
     with get_conn() as conn:
@@ -1532,17 +1658,27 @@ async def add_clip(
     hcolor = _resolve_clip_option(
         payload.highlight_color, lambda v: bool(HEX_COLOR_RE.match(v)), {}, "highlight_color", row, "highlight_color", DEFAULT_HIGHLIGHT_COLOR,
     )
+    if payload.overlay_url == "":
+        overlay_url = None
+    else:
+        overlay_url = payload.overlay_url or row.get("overlay_url")
+    overlay_position, overlay_scale = _validate_overlay_options(
+        payload.overlay_position or row.get("overlay_position"),
+        payload.overlay_scale or row.get("overlay_scale"),
+    )
     index = len(clips)
     name = f"clip_{index + 1}"
     job_out_dir = OUTPUT_DIR / job_id
     title = (payload.title or "").strip() or "Manuel klip"
 
+    overlay_path, overlay_is_temp = _ensure_overlay_local(overlay_url)
     try:
         path = make_vertical_clip(
             str(video_path), payload.start, payload.end, all_words, job_out_dir, name,
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
+            overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
         )
         cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -1550,6 +1686,8 @@ async def add_clip(
     finally:
         if _is_temp_addclip:
             shutil.rmtree(video_path.parent, ignore_errors=True)
+        if overlay_is_temp and overlay_path:
+            shutil.rmtree(overlay_path.parent, ignore_errors=True)
 
     clip_url = _upload_output(job_id, path)
     cover_url = _upload_output(job_id, cover_path) if cover_path else None
@@ -1578,6 +1716,9 @@ async def add_clip(
         "subtitle_animation": anim,
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
+        "overlay_url": overlay_url,
+        "overlay_position": overlay_position,
+        "overlay_scale": overlay_scale,
     }
     clips.append(new_clip)
 
@@ -1815,6 +1956,8 @@ async def render_options():
         "positions": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_POSITIONS.items()],
         "colors": SUBTITLE_COLOR_PRESETS,
         "animations": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_ANIMATIONS.items()],
+        "overlayPositions": [{"id": key, "label": preset["label"]} for key, preset in OVERLAY_POSITIONS.items()],
+        "overlayScales": [{"id": key, "label": preset["label"]} for key, preset in OVERLAY_SCALES.items()],
         "credits": {"base": CREDIT_COST_BASE, "per_clip": CREDIT_COST_PER_CLIP},
     }
 

@@ -27,6 +27,9 @@ type Clip = {
   aspect?: string;
   subtitle_animation?: string;
   highlight_color?: string;
+  overlay_url?: string | null;
+  overlay_position?: string;
+  overlay_scale?: string;
   social_caption?: string;
   social_hashtags?: string[];
   translations?: { language: string; label: string; url: string }[];
@@ -55,6 +58,8 @@ type RenderOptions = {
   positions: { id: string; label: string }[];
   colors: { id: string; label: string; hex: string }[];
   animations: { id: string; label: string }[];
+  overlayPositions: { id: string; label: string }[];
+  overlayScales: { id: string; label: string }[];
   credits: { base: number; per_clip: number };
 };
 type Me = {
@@ -126,6 +131,17 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "pop", label: "Zıplayan (pop)" },
     { id: "daktilo", label: "Daktilo (harf harf)" },
     { id: "kayan", label: "Kayarak giren" },
+  ],
+  overlayPositions: [
+    { id: "sol-ust", label: "Sol Üst" },
+    { id: "sag-ust", label: "Sağ Üst (varsayılan)" },
+    { id: "sol-alt", label: "Sol Alt" },
+    { id: "sag-alt", label: "Sağ Alt" },
+  ],
+  overlayScales: [
+    { id: "kucuk", label: "Küçük" },
+    { id: "orta", label: "Orta (varsayılan)" },
+    { id: "buyuk", label: "Büyük" },
   ],
   credits: { base: 4, per_clip: 2 },
 };
@@ -944,6 +960,10 @@ export default function AppPage() {
   const [aspect, setAspect] = useState("9:16");
   const [subtitleAnimation, setSubtitleAnimation] = useState("statik");
   const [subtitleHighlightColor, setSubtitleHighlightColor] = useState("#FFEB3B");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [overlayPosition, setOverlayPosition] = useState("sag-ust");
+  const [overlayScale, setOverlayScale] = useState("orta");
   const [currentAspect, setCurrentAspect] = useState("9:16");
   const [currentStyle, setCurrentStyle] = useState("klasik");
   const [currentSubtitleColor, setCurrentSubtitleColor] = useState("#FFFFFF");
@@ -1162,6 +1182,32 @@ export default function AppPage() {
     setCurrentJobId(null);
     setError(null);
 
+    // Logo/banner secildiyse, video yuklemeden ONCE ayri bir istekle yuklenir -
+    // donen url, /api/upload veya /api/upload-url istegine overlay_url olarak eklenir.
+    let overlayUrl: string | null = null;
+    if (logoFile) {
+      try {
+        const logoFormData = new FormData();
+        logoFormData.append("file", logoFile);
+        const logoRes = await fetch(`${API_URL}/api/upload-logo`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: logoFormData,
+        });
+        const logoData = await logoRes.json();
+        if (!logoRes.ok) {
+          setStatus("error");
+          setError(logoData.detail || "Logo yüklenemedi");
+          return;
+        }
+        overlayUrl = logoData.url;
+      } catch {
+        setStatus("error");
+        setError("Sunucuya ulaşılamadı, backend çalışıyor mu kontrol et");
+        return;
+      }
+    }
+
     const preset = DURATION_PRESETS[durationPreset] ?? DURATION_PRESETS.orta;
 
     let res: Response;
@@ -1179,6 +1225,11 @@ export default function AppPage() {
         subtitle_animation: subtitleAnimation,
         highlight_color: subtitleHighlightColor,
       };
+      if (overlayUrl) {
+        body.overlay_url = overlayUrl;
+        body.overlay_position = overlayPosition;
+        body.overlay_scale = overlayScale;
+      }
       if (canCustomize) {
         body.clip_count = clipCount;
         body.min_duration = preset.min;
@@ -1199,6 +1250,11 @@ export default function AppPage() {
       formData.append("aspect", aspect);
       formData.append("subtitle_animation", subtitleAnimation);
       formData.append("highlight_color", subtitleHighlightColor);
+      if (overlayUrl) {
+        formData.append("overlay_url", overlayUrl);
+        formData.append("overlay_position", overlayPosition);
+        formData.append("overlay_scale", overlayScale);
+      }
       if (canCustomize) {
         formData.append("clip_count", String(clipCount));
         formData.append("min_duration", String(preset.min));
@@ -1516,6 +1572,74 @@ export default function AppPage() {
               </div>
             </div>
           )}
+
+          <div className="w-full text-left">
+            <span className="block text-xs font-medium text-zinc-400 mb-2">Logo / Banner (opsiyonel)</span>
+            <div className="flex items-center gap-3">
+              {logoPreview ? (
+                <div className="relative h-14 w-14 rounded-lg overflow-hidden border border-white/10 bg-black/40 flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoPreview} alt="Logo önizleme" className="h-full w-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoPreview(null);
+                    }}
+                    className="absolute top-0 right-0 bg-black/70 text-white text-[10px] px-1 leading-4"
+                    aria-label="Logoyu kaldır"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="h-14 w-14 rounded-lg border border-dashed border-white/20 flex items-center justify-center text-zinc-500 text-[10px] text-center cursor-pointer hover:border-white/40 transition-colors flex-shrink-0">
+                  Ekle
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setLogoFile(f);
+                      setLogoPreview(URL.createObjectURL(f));
+                    }}
+                  />
+                </label>
+              )}
+
+              {logoFile && (
+                <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={overlayPosition}
+                    onChange={(e) => setOverlayPosition(e.target.value)}
+                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                  >
+                    {renderOptions.overlayPositions.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-black">
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={overlayScale}
+                    onChange={(e) => setOverlayScale(e.target.value)}
+                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                  >
+                    {renderOptions.overlayScales.map((s) => (
+                      <option key={s.id} value={s.id} className="bg-black">
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-1.5">
+              Klibin köşesine sabit bir logo/banner görseli bindirir (PNG/JPEG/WEBP, en fazla 5MB)
+            </p>
+          </div>
 
           <div className="w-full text-left">
             <div className="flex items-center gap-2 mb-2">
