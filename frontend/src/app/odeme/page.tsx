@@ -168,9 +168,8 @@ function OdemeForm() {
                   />
                 </label>
                 <label className="text-sm">
-                  <span className="block mb-1.5 text-zinc-400 font-medium">TC Kimlik No</span>
+                  <span className="block mb-1.5 text-zinc-400 font-medium">TC Kimlik No (opsiyonel)</span>
                   <input
-                    required
                     value={identityNumber}
                     onChange={(e) => setIdentityNumber(e.target.value)}
                     maxLength={11}
