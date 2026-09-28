@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, KeyRound, LogOut, 
 import { AVATAR_META, AvatarBadge } from "@/components/AvatarIcons";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
+import PageLoader from "@/components/PageLoader";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -439,7 +440,7 @@ function ProfilContent() {
     }
   }
 
-  if (!token || !me) return null;
+  if (!token || !me) return <PageLoader />;
 
   const previewName = displayName.trim() || me.user.email.split("@")[0];
 

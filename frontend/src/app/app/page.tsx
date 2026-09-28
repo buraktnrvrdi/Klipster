@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2, Wand2, SquarePlay } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
+import PageLoader from "@/components/PageLoader";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const resolveUrl = (url: string | null | undefined) =>
@@ -1362,7 +1363,7 @@ export default function AppPage() {
 
   const isBusy = status !== "idle" && status !== "done" && status !== "error";
 
-  if (!token) return null;
+  if (!token) return <PageLoader />;
 
   const limitReached = false; // KREDİ KONTROLİ GEÇİCİ OLARAK DEVRE DIŞI
   const effectiveClipCount = canCustomize ? clipCount : 5;

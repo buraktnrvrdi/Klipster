@@ -16,6 +16,7 @@ import {
   Monitor,
   Image as ImageIcon,
 } from "lucide-react";
+import PageLoader from "@/components/PageLoader";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const resolveUrl = (url: string | null | undefined) =>
@@ -666,7 +667,7 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
     }
   }
 
-  if (!token) return null;
+  if (!token) return <PageLoader />;
 
   const aspectClass = ASPECT_CLASS[clipAspect] || ASPECT_CLASS["9:16"];
   const canSave = !loading && !!clip && end - start >= 3;
