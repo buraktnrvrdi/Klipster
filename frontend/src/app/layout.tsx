@@ -60,6 +60,11 @@ const ORGANIZATION_JSON_LD = {
   url: SITE_URL,
   logo: `${SITE_URL}/logo-v2.png`,
   description: DESCRIPTION,
+  sameAs: [
+    "https://www.instagram.com/klipster.tr",
+    "https://x.com/klipstertr",
+    "https://www.tiktok.com/@klipster.tr",
+  ],
 };
 
 const WEBSITE_JSON_LD = {

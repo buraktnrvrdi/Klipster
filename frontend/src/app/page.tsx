@@ -465,6 +465,43 @@ export default function LandingPage() {
             <p className="text-zinc-500 max-w-xs leading-relaxed">
               İçerik üreticiler için sıfırdan tasarlanan yapay zeka klip stüdyosu.
             </p>
+            <div className="flex items-center gap-4 mt-6">
+              <a
+                href="https://www.instagram.com/klipster.tr"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="text-zinc-500 hover:text-red-500 transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="3" y="3" width="18" height="18" rx="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+                </svg>
+              </a>
+              <a
+                href="https://x.com/klipstertr"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="X (Twitter)"
+                className="text-zinc-500 hover:text-red-500 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.045 4.126H5.078z" />
+                </svg>
+              </a>
+              <a
+                href="https://www.tiktok.com/@klipster.tr"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="TikTok"
+                className="text-zinc-500 hover:text-red-500 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16.6 5.82a4.28 4.28 0 0 1-3.34-4.05h-3.22v13.9a2.6 2.6 0 1 1-2.6-2.6c.14 0 .27.01.4.03V9.9a5.86 5.86 0 0 0-.4-.01 5.86 5.86 0 1 0 5.86 5.86V9.1a7.5 7.5 0 0 0 4.3 1.36V7.24a4.27 4.27 0 0 1-1-1.42z" />
+                </svg>
+              </a>
+            </div>
           </div>
 
           <div>
