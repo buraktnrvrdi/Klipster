@@ -34,7 +34,12 @@ PRICING_PLAN_CODES = {
     "ajans": os.environ.get("IYZICO_AJANS_PLAN_CODE", ""),
 }
 
-PLAN_PRICES_TL = {"yaratici": 589, "ajans": 1490}
+# Kullaniciya "$15/ay", "$45/ay" olarak gosterilen dolar fiyatlari - iyzico
+# TL disinda tahsilat yapmadigi icin (Turkiye merchant hesaplari icin), kartdan
+# gercekte cekilen tutar sabit bir TL karsiligidir (PLAN_PRICES_TL). Kur
+# degisse bile bu TL tutari degismez - sadece ekrandaki dolar etiketi kalir.
+PLAN_PRICES_USD = {"yaratici": 15, "ajans": 45}
+PLAN_PRICES_TL = {"yaratici": 749, "ajans": 2249}
 PLAN_LABELS = {"yaratici": "Yaratıcı", "ajans": "Ajans"}
 
 

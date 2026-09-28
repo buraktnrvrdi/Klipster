@@ -971,7 +971,12 @@ async def payment_plans():
     (henuz kurulmamis demektir)."""
     return {
         "plans": [
-            {"id": plan_id, "label": payments.PLAN_LABELS[plan_id], "price_try": payments.PLAN_PRICES_TL[plan_id]}
+            {
+                "id": plan_id,
+                "label": payments.PLAN_LABELS[plan_id],
+                "price_try": payments.PLAN_PRICES_TL[plan_id],
+                "price_usd": payments.PLAN_PRICES_USD[plan_id],
+            }
             for plan_id in ("yaratici", "ajans")
             if payments.plan_is_purchasable(plan_id)
         ]
