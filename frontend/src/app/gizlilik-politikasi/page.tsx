@@ -57,8 +57,8 @@ export default function GizlilikPolitikasiPage() {
             Klipster hizmeti şu an için şahıs bünyesinde, Burak tarafından işletilmektedir (şirket
             kuruluş süreci devam etmektedir - bu bölüm resmi bir şirket kurulduğunda güncellenecektir).
             Kişisel verilerinizle ilgili sorularınız için{" "}
-            <a href="mailto:brightnotedestek@gmail.com" className="text-red-400 hover:underline">
-              brightnotedestek@gmail.com
+            <a href="mailto:klipster.app@gmail.com" className="text-red-400 hover:underline">
+              klipster.app@gmail.com
             </a>{" "}
             adresinden bize ulaşabilirsiniz.
           </p>
@@ -126,8 +126,8 @@ export default function GizlilikPolitikasiPage() {
           </ul>
           <p>
             Bu haklarını kullanmak için{" "}
-            <a href="mailto:brightnotedestek@gmail.com" className="text-red-400 hover:underline">
-              brightnotedestek@gmail.com
+            <a href="mailto:klipster.app@gmail.com" className="text-red-400 hover:underline">
+              klipster.app@gmail.com
             </a>{" "}
             adresine yazabilir, veya doğrudan{" "}
             <Link href="/profil" className="text-red-400 hover:underline">
