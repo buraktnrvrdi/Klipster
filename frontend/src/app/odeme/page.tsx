@@ -36,6 +36,7 @@ function OdemeForm() {
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null);
@@ -191,6 +192,23 @@ function OdemeForm() {
                   </label>
                 </div>
 
+                <label className="flex items-start gap-2.5 text-xs text-zinc-400 select-none">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-red-500"
+                  />
+                  <span>
+                    <Link href="/kullanim-kosullari" target="_blank" className="text-red-400 hover:underline">
+                      Kullanım Koşulları&apos;nı
+                    </Link>{" "}
+                    okudum, kabul ediyorum ve hizmetin ifasına derhal başlanmasını onayladığım için
+                    cayma hakkımı kullanamayacağımı biliyorum.
+                  </span>
+                </label>
+
                 {error && (
                   <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                     {error}
@@ -199,7 +217,7 @@ function OdemeForm() {
 
                 <button
                   type="submit"
-                  disabled={loading || !selectedPlan}
+                  disabled={loading || !selectedPlan || !termsAccepted}
                   className="mt-2 bg-red-500 hover:bg-red-600 text-black px-6 py-2.5 rounded-full font-semibold text-sm transition disabled:opacity-40"
                 >
                   {loading ? "Hazırlanıyor..." : "Ödemeye geç"}

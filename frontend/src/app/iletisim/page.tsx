@@ -25,7 +25,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Ücretli bir plana nasıl geçebilirim?",
-    a: "Gerçek ödeme altyapımız şu an geliştirme aşamasında - yakında eklenecek. Şimdilik ücretsiz planla platformu deneyimleyebilirsin, ödeme sistemi devreye girdiğinde tüm kullanıcılara duyuracağız.",
+    a: "Profilim sayfasındaki \"Planı yükselt\" butonuna veya ana sayfadaki fiyatlandırma bölümüne tıklayarak Yaratıcı ya da Ajans planına geçebilirsin. Ödeme iyzico'nun güvenli sayfasında alınır, kart bilgilerin bizde saklanmaz - abonelik her ay otomatik yenilenir, istediğin zaman profilinden iptal edebilirsin.",
   },
   {
     q: "Ekip/Ajans özelliği ne işe yarar?",
@@ -88,14 +88,14 @@ export default function IletisimPage() {
         </p>
 
         <a
-          href="mailto:brightnotedestek@gmail.com"
+          href="mailto:buraktanriverdicontact@gmail.com"
           className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl px-6 py-5 hover:border-red-500/40 transition-colors w-fit"
         >
           <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
             <Mail className="h-4 w-4 text-red-400" />
           </div>
           <div>
-            <p className="text-sm font-medium text-zinc-200">brightnotedestek@gmail.com</p>
+            <p className="text-sm font-medium text-zinc-200">buraktanriverdicontact@gmail.com</p>
             <p className="text-xs text-zinc-500">Genelde 1-2 iş günü içinde dönüş yapıyoruz</p>
           </div>
         </a>

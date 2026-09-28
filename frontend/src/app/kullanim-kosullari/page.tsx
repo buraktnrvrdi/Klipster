@@ -88,9 +88,23 @@ export default function KullanimKosullariPage() {
           <p>
             Klipster; ücretsiz, Yaratıcı ve Ajans olmak üzere farklı planlar sunar. Her plan, video
             süresi ve klip sayısına göre hesaplanan aylık bir kredi kotasına sahiptir. Krediler her
-            ayın başında yenilenir, bir sonraki aya devretmez. Ücretli plan ve gerçek ödeme altyapısı
-            şu an geliştirme aşamasındadır; bu bölüm ödeme sistemi devreye girdiğinde
-            (iptal/iade koşulları dahil) güncellenecektir.
+            ayın başında yenilenir, bir sonraki aya devretmez.
+          </p>
+          <p>
+            Yaratıcı ve Ajans planları, iyzico altyapısı üzerinden aylık olarak otomatik yenilenen
+            bir abonelik şeklinde satın alınır. Kart bilgilerin Klipster sunucularına değil,
+            doğrudan iyzico&apos;nun güvenli ödeme sayfasına girilir ve bizde saklanmaz. Abonelik
+            ücreti, her yenileme döneminin başında kayıtlı kartından otomatik olarak tahsil edilir.
+          </p>
+          <p>
+            Aboneliğini istediğin an, profil sayfandaki &quot;Aboneliği iptal et&quot; seçeneğiyle
+            iptal edebilirsin; iptal talebinden itibaren bir sonraki yenileme döneminde ücret
+            tahsil edilmez ve planın ücretsiz plana döner. Klipster dijital bir hizmet olduğu ve
+            satın alma anında kullanıcının açık onayıyla hizmetin ifasına derhal başlandığı için,
+            6502 sayılı Kanun ve Mesafeli Sözleşmeler Yönetmeliği uyarınca, hizmetin ifasına
+            başlanmasından sonra cayma hakkı kullanılamaz; ödeme ekranında bu husus ayrıca onayına
+            sunulur. Buna karşın, teknik bir hata nedeniyle bir video hiç işlenemezse o işlem için
+            harcanan kredi otomatik olarak iade edilir/kullanılmamış sayılır.
           </p>
         </Section>
 
