@@ -53,6 +53,7 @@ from app.services.credits import (
 )
 from app.services.email import send_email
 from app.services import payments
+from app.services import social_youtube
 from app.services import storage
 from app.services.highlights import (
     find_highlights,
@@ -180,6 +181,28 @@ def _ensure_overlay_local(overlay_value: str | None) -> tuple[Path | None, bool]
         tmp = Path(tempfile.mkdtemp()) / Path(overlay_value).name
         try:
             storage.download(overlay_value, tmp)
+        except Exception:
+            return None, False
+        return tmp, True
+    return None, False
+
+
+def _ensure_clip_local(clip_url: str | None) -> tuple[Path | None, bool]:
+    """Bir klibin uretilmis video dosyasini yerel bir yola cozer - disk
+    modundaysa dogrudan diskteki kopyayi, R2/B2 modundaysa gecici bir dosyaya
+    indirip onu dondurur (YouTube'a yuklerken kullanilir). clip["url"]
+    veritabaninda ham (henuz imzali URL'e cevrilmemis) haliyle tutulur -
+    bkz. _resolve_clip_urls."""
+    if not clip_url:
+        return None, False
+    if clip_url.startswith("/files/"):
+        local = OUTPUT_DIR / clip_url.removeprefix("/files/")
+        return (local, False) if local.exists() else (None, False)
+    if storage.is_enabled():
+        key = storage.key_from_value(clip_url) or clip_url
+        tmp = Path(tempfile.mkdtemp()) / Path(key).name
+        try:
+            storage.download(key, tmp)
         except Exception:
             return None, False
         return tmp, True
@@ -1128,6 +1151,195 @@ async def cancel_subscription(current_user: dict = Depends(get_current_user)):
         conn.execute("UPDATE users SET plan = 'ucretsiz' WHERE id = %s", (current_user["id"],))
         conn.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Sosyal medya baglantilari (YouTube)
+# ---------------------------------------------------------------------------
+
+YOUTUBE_REDIRECT_URI = f"{BACKEND_URL}/api/social/youtube/callback"
+
+
+class PublishYoutubePayload(BaseModel):
+    title: str
+    description: str | None = None
+
+
+@app.get("/api/social/status")
+async def social_status(current_user: dict = Depends(get_current_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT account_name FROM social_connections WHERE user_id = %s AND platform = 'youtube'",
+            (current_user["id"],),
+        ).fetchone()
+    return {"youtube": {"connected": bool(row), "account_name": row["account_name"] if row else None}}
+
+
+@app.get("/api/social/youtube/connect")
+async def youtube_connect(current_user: dict = Depends(get_current_user)):
+    if not social_youtube.is_configured():
+        raise HTTPException(status_code=503, detail="YouTube bağlantısı henüz yapılandırılmadı")
+    state = secrets.token_urlsafe(24)
+    with get_conn() as conn:
+        conn.execute("DELETE FROM oauth_states WHERE created_at < NOW() - INTERVAL '15 minutes'")
+        conn.execute(
+            "INSERT INTO oauth_states (state, user_id, platform) VALUES (%s, %s, 'youtube')",
+            (state, current_user["id"]),
+        )
+        conn.commit()
+    return {"url": social_youtube.build_auth_url(state, YOUTUBE_REDIRECT_URI)}
+
+
+@app.get("/api/social/youtube/callback")
+async def youtube_callback(request: Request):
+    """Google'in OAuth sonrasi kullaniciyi (tarayici uzerinden) geri
+    gonderdigi adres - oturum tokeni tasimaz, dogrulama 'state' parametresi
+    uzerinden yapilir (bkz. /api/payments/callback ile ayni desen)."""
+    params = request.query_params
+    error = params.get("error")
+    state = params.get("state")
+    code = params.get("code")
+
+    if error or not state or not code:
+        return RedirectResponse(f"{FRONTEND_URL}/profil?youtube=basarisiz", status_code=302)
+
+    with get_conn() as conn:
+        state_row = conn.execute(
+            "SELECT user_id FROM oauth_states WHERE state = %s AND platform = 'youtube'", (state,)
+        ).fetchone()
+        if state_row:
+            conn.execute("DELETE FROM oauth_states WHERE state = %s", (state,))
+            conn.commit()
+    if not state_row:
+        return RedirectResponse(f"{FRONTEND_URL}/profil?youtube=basarisiz", status_code=302)
+
+    try:
+        tokens = await run_in_threadpool(social_youtube.exchange_code, code, YOUTUBE_REDIRECT_URI)
+        access_token = tokens["access_token"]
+        refresh_token = tokens.get("refresh_token")
+        channel_name = await run_in_threadpool(social_youtube.get_channel_name, access_token)
+    except Exception as exc:
+        logger.error("[youtube oauth] baglanti basarisiz: %s", exc)
+        return RedirectResponse(f"{FRONTEND_URL}/profil?youtube=basarisiz", status_code=302)
+
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.get("expires_in", 3600))
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT refresh_token FROM social_connections WHERE user_id = %s AND platform = 'youtube'",
+            (state_row["user_id"],),
+        ).fetchone()
+        # Google, kullanici zaten yetki vermisse refresh_token'i tekrar
+        # gondermeyebilir - varsa eskisini koru.
+        final_refresh = refresh_token or (existing["refresh_token"] if existing else None)
+        conn.execute(
+            """
+            INSERT INTO social_connections (user_id, platform, account_name, access_token, refresh_token, token_expires_at)
+            VALUES (%s, 'youtube', %s, %s, %s, %s)
+            ON CONFLICT (user_id, platform) DO UPDATE SET
+                account_name = EXCLUDED.account_name,
+                access_token = EXCLUDED.access_token,
+                refresh_token = EXCLUDED.refresh_token,
+                token_expires_at = EXCLUDED.token_expires_at,
+                updated_at = NOW()
+            """,
+            (state_row["user_id"], channel_name, access_token, final_refresh, expires_at.isoformat()),
+        )
+        conn.commit()
+    return RedirectResponse(f"{FRONTEND_URL}/profil?youtube=baglandi", status_code=302)
+
+
+@app.delete("/api/social/youtube")
+async def youtube_disconnect(current_user: dict = Depends(get_current_user)):
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM social_connections WHERE user_id = %s AND platform = 'youtube'",
+            (current_user["id"],),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+def _get_youtube_access_token(user_id: int) -> str:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT access_token, refresh_token, token_expires_at FROM social_connections WHERE user_id = %s AND platform = 'youtube'",
+            (user_id,),
+        ).fetchone()
+    if not row or not row.get("refresh_token"):
+        raise HTTPException(status_code=409, detail="YouTube hesabın bağlı değil, önce profil sayfasından bağla")
+
+    expires_at = row.get("token_expires_at")
+    is_expired = True
+    if expires_at:
+        try:
+            is_expired = datetime.fromisoformat(expires_at) <= datetime.now(timezone.utc)
+        except ValueError:
+            is_expired = True
+    if not is_expired and row.get("access_token"):
+        return row["access_token"]
+
+    try:
+        tokens = social_youtube.refresh_access_token(row["refresh_token"])
+    except social_youtube.SocialAuthError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    access_token = tokens["access_token"]
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.get("expires_in", 3600))
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE social_connections SET access_token = %s, token_expires_at = %s, updated_at = NOW() WHERE user_id = %s AND platform = 'youtube'",
+            (access_token, expires_at.isoformat(), user_id),
+        )
+        conn.commit()
+    return access_token
+
+
+@app.post("/api/jobs/{job_id}/clips/{clip_index}/publish/youtube")
+async def publish_clip_youtube(
+    job_id: str,
+    clip_index: int,
+    payload: PublishYoutubePayload,
+    current_user: dict = Depends(get_current_user),
+):
+    """Bir klibi kullanicinin baglanmis YouTube kanalina Shorts olarak
+    yukler. Dikey/60 saniyeden kisa videolar YouTube tarafindan otomatik
+    Shorts sayilir."""
+    org = _get_user_org(current_user["id"])
+    scope_sql, scope_params = _job_scope(current_user, org)
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM jobs WHERE id = %s AND {scope_sql}", (job_id, *scope_params)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+
+    clips = json.loads(row["clips_json"]) if row["clips_json"] else []
+    if clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=404, detail="Klip bulunamadı")
+    clip = clips[clip_index]
+    if not clip.get("url"):
+        raise HTTPException(status_code=409, detail="Bu klip için video dosyası yok")
+
+    access_token = _get_youtube_access_token(current_user["id"])
+
+    video_path, is_temp = await run_in_threadpool(_ensure_clip_local, clip["url"])
+    if not video_path:
+        raise HTTPException(status_code=409, detail="Klip dosyasına ulaşılamadı")
+
+    try:
+        video_id = await run_in_threadpool(
+            social_youtube.upload_short,
+            access_token,
+            video_path,
+            payload.title,
+            payload.description or "",
+        )
+    except social_youtube.SocialAuthError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    finally:
+        if is_temp:
+            video_path.unlink(missing_ok=True)
+
+    return {"ok": True, "video_id": video_id, "url": f"https://youtube.com/shorts/{video_id}"}
 
 
 # ---------------------------------------------------------------------------

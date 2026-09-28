@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, KeyRound, LogOut, Mail, Trash2, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, KeyRound, LogOut, Mail, SquarePlay, Trash2, UserPlus, Users } from "lucide-react";
 import { AVATAR_META, AvatarBadge } from "@/components/AvatarIcons";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
@@ -60,7 +60,16 @@ function authHeaders(token: string): HeadersInit {
 }
 
 export default function ProfilPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilContent />
+    </Suspense>
+  );
+}
+
+function ProfilContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [avatars, setAvatars] = useState<string[]>([]);
@@ -100,6 +109,13 @@ export default function ProfilPage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
+  const [youtubeConnected, setYoutubeConnected] = useState(false);
+  const [youtubeAccountName, setYoutubeAccountName] = useState<string | null>(null);
+  const [youtubeConnecting, setYoutubeConnecting] = useState(false);
+  const [youtubeDisconnecting, setYoutubeDisconnecting] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeNotice, setYoutubeNotice] = useState<string | null>(null);
+
   useEffect(() => {
     const t = localStorage.getItem("klipster_token");
     if (!t) {
@@ -136,8 +152,60 @@ export default function ProfilPage() {
       .then((data) => setSubscription(data?.subscription ?? null))
       .catch(() => {});
 
+    refreshYoutubeStatus(token);
     refreshOrg(token);
   }, [token, router]);
+
+  useEffect(() => {
+    const youtubeParam = searchParams.get("youtube");
+    if (youtubeParam === "baglandi") {
+      setYoutubeNotice("YouTube hesabın bağlandı ✓");
+    } else if (youtubeParam === "basarisiz") {
+      setYoutubeError("YouTube bağlantısı kurulamadı, tekrar dener misin?");
+    }
+  }, [searchParams]);
+
+  function refreshYoutubeStatus(t: string) {
+    fetch(`${API_URL}/api/social/status`, { headers: authHeaders(t) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        setYoutubeConnected(Boolean(data?.youtube?.connected));
+        setYoutubeAccountName(data?.youtube?.account_name ?? null);
+      })
+      .catch(() => {});
+  }
+
+  async function handleYoutubeConnect() {
+    if (!token) return;
+    setYoutubeError(null);
+    setYoutubeConnecting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/social/youtube/connect`, { headers: authHeaders(token) });
+      const data = await res.json();
+      if (!res.ok) {
+        setYoutubeError(data.detail || "YouTube bağlantısı başlatılamadı");
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setYoutubeError("Sunucuya ulaşılamadı");
+      setYoutubeConnecting(false);
+    }
+  }
+
+  async function handleYoutubeDisconnect() {
+    if (!token) return;
+    setYoutubeDisconnecting(true);
+    try {
+      await fetch(`${API_URL}/api/social/youtube`, { method: "DELETE", headers: authHeaders(token) });
+      setYoutubeConnected(false);
+      setYoutubeAccountName(null);
+    } catch {
+      setYoutubeError("Sunucuya ulaşılamadı");
+    } finally {
+      setYoutubeDisconnecting(false);
+    }
+  }
 
   function refreshOrg(t: string) {
     fetch(`${API_URL}/api/org`, { headers: authHeaders(t) })
@@ -572,6 +640,59 @@ export default function ProfilPage() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Bagli hesaplar (sosyal medya) */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <SquarePlay className="h-4 w-4 text-zinc-500" />
+                <p className="text-sm font-medium text-zinc-300">Bağlı Hesaplar</p>
+              </div>
+              <p className="text-xs text-zinc-500 mb-4">
+                Bağladığın hesaplara, klip düzenleme ekranından doğrudan "Shorts" olarak yükleme yapabilirsin.
+              </p>
+
+              {youtubeNotice && (
+                <p className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 mb-3">
+                  {youtubeNotice}
+                </p>
+              )}
+              {youtubeError && (
+                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">
+                  {youtubeError}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-4 flex-wrap rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                    <SquarePlay className="h-4 w-4 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">YouTube</p>
+                    <p className="text-xs text-zinc-500">
+                      {youtubeConnected ? `Bağlı: ${youtubeAccountName ?? "kanal"}` : "Bağlı değil"}
+                    </p>
+                  </div>
+                </div>
+                {youtubeConnected ? (
+                  <button
+                    onClick={handleYoutubeDisconnect}
+                    disabled={youtubeDisconnecting}
+                    className="text-xs text-zinc-400 hover:text-red-400 font-medium transition-colors disabled:opacity-40"
+                  >
+                    {youtubeDisconnecting ? "Kaldırılıyor..." : "Bağlantıyı kaldır"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleYoutubeConnect}
+                    disabled={youtubeConnecting}
+                    className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-1.5 rounded-full text-xs font-semibold transition disabled:opacity-40"
+                  >
+                    {youtubeConnecting ? "Yönlendiriliyor..." : "Bağlan"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Hesap guvenligi */}
