@@ -403,13 +403,16 @@ class AcceptInvitePayload(BaseModel):
 
 
 class CheckoutPayload(BaseModel):
-    """Odeme sayfasindan gonderilen fatura/musteri bilgileri - iyzico bir
-    abonelik icin bunlari zorunlu tutuyor (TC kimlik no dahil)."""
+    """Odeme sayfasindan gonderilen fatura/musteri bilgileri. TC kimlik no
+    opsiyonel: iyzico API'si bunu gercek bir kimlik dogrulamasi olarak
+    kullanmiyor (resmi ornek kodlarinda bile gecersiz formatta degerler var,
+    ör. "111111"), sadece dolu bir alan bekliyor - bos birakilirsa sabit bir
+    dolgu deger gonderilir, kullanicidan zorla istenmez."""
     plan: str
     name: str
     surname: str
     phone: str
-    identity_number: str
+    identity_number: str | None = None
     address: str
     city: str
     zip_code: str | None = None
@@ -995,8 +998,8 @@ async def create_checkout(payload: CheckoutPayload, current_user: dict = Depends
         raise HTTPException(status_code=503, detail="Ödeme sistemi henüz yapılandırılmadı")
     if not payments.plan_is_purchasable(payload.plan):
         raise HTTPException(status_code=400, detail="Geçersiz plan")
-    if not payload.identity_number.strip() or not payload.phone.strip():
-        raise HTTPException(status_code=400, detail="TC kimlik numarası ve telefon zorunlu")
+    if not payload.phone.strip():
+        raise HTTPException(status_code=400, detail="Telefon zorunlu")
 
     conversation_id = f"sub-{current_user['id']}-{uuid.uuid4().hex[:10]}"
     callback_url = f"{BACKEND_URL}/api/payments/callback"
@@ -1011,7 +1014,7 @@ async def create_checkout(payload: CheckoutPayload, current_user: dict = Depends
                 "surname": payload.surname.strip(),
                 "email": current_user["email"],
                 "phone": payload.phone.strip(),
-                "identity_number": payload.identity_number.strip(),
+                "identity_number": (payload.identity_number or "").strip() or "11111111111",
                 "address": payload.address.strip(),
                 "city": payload.city.strip(),
                 "zip_code": (payload.zip_code or "").strip(),
