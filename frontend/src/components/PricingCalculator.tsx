@@ -34,11 +34,11 @@ const PLANS: Plan[] = [
     id: "yaratici",
     name: "Yaratıcı",
     icon: Zap,
-    price: 19,
-    priceLabel: "$19",
+    price: 589,
+    priceLabel: "589₺",
     tagline: "İçerik üreticiler için.",
     monthlyVideoLimit: 20,
-    features: ["Ayda 20 video", "Video başına 6 klip", "Gelişmiş altyazı stilleri", "Dolgu kelime temizliği"],
+    features: ["Ayda 300 kredi", "Klip sayısı/süresi özelleştirme", "Gelişmiş altyazı stilleri", "Dolgu kelime temizliği"],
     cta: "Yaratıcı'ya Geç",
     highlighted: true,
   },
@@ -46,12 +46,12 @@ const PLANS: Plan[] = [
     id: "ajans",
     name: "Ajans",
     icon: Building2,
-    price: 49,
-    priceLabel: "$49",
+    price: 1490,
+    priceLabel: "1490₺",
     tagline: "Ekipler için.",
     monthlyVideoLimit: null,
-    features: ["Sınırsız video", "Çoklu kullanıcı", "Öncelikli destek"],
-    cta: "İletişime Geç",
+    features: ["Sınırsız kredi", "Çoklu kullanıcı (ekip)", "Öncelikli destek"],
+    cta: "Ajans'a Geç",
   },
 ];
 
@@ -134,7 +134,7 @@ export default function PricingCalculator() {
               <p className="text-xs uppercase tracking-widest text-zinc-500">Tahmini aylık maliyet</p>
               <p className="text-lg font-semibold text-red-500 mt-1">
                 {recommendedPlan.priceLabel}
-                {perVideoCost && <span className="text-zinc-500 font-normal text-sm"> · video başına ~${perVideoCost}</span>}
+                {perVideoCost && <span className="text-zinc-500 font-normal text-sm"> · video başına ~{perVideoCost}₺</span>}
               </p>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function PricingCalculator() {
                 </ul>
 
                 <Link
-                  href="/kayit"
+                  href={plan.id === "ucretsiz" ? "/kayit" : `/odeme?plan=${plan.id}`}
                   className={`w-full text-center py-3 px-4 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${
                     plan.highlighted
                       ? "bg-red-500 hover:bg-red-600 text-black"

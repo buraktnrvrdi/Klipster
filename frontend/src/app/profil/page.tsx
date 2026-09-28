@@ -34,6 +34,8 @@ type OrgMember = {
 
 type OrgInvite = { token: string; email: string; created_at: string };
 
+type Subscription = { plan: string; status: string; created_at: string; updated_at: string } | null;
+
 type OrgDetail = {
   id: string;
   name: string;
@@ -79,6 +81,11 @@ export default function ProfilPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [cancelConfirming, setCancelConfirming] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
 
@@ -122,6 +129,11 @@ export default function ProfilPage() {
     fetch(`${API_URL}/api/avatars`)
       .then((r) => r.json())
       .then(setAvatars)
+      .catch(() => {});
+
+    fetch(`${API_URL}/api/payments/status`, { headers: authHeaders(token) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setSubscription(data?.subscription ?? null))
       .catch(() => {});
 
     refreshOrg(token);
@@ -335,6 +347,30 @@ export default function ProfilPage() {
     }
   }
 
+  async function handleCancelSubscription() {
+    if (!token) return;
+    setCancelError(null);
+    setCanceling(true);
+    try {
+      const res = await fetch(`${API_URL}/api/payments/cancel`, {
+        method: "POST",
+        headers: authHeaders(token),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCancelError(data.detail || "Abonelik iptal edilemedi");
+        return;
+      }
+      setSubscription((s) => (s ? { ...s, status: "canceled" } : s));
+      setMe((m) => (m ? { ...m, user: { ...m.user, plan: "ucretsiz" } } : m));
+      setCancelConfirming(false);
+    } catch {
+      setCancelError("Sunucuya ulaşılamadı");
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   if (!token || !me) return null;
 
   const previewName = displayName.trim() || me.user.email.split("@")[0];
@@ -480,26 +516,61 @@ export default function ProfilPage() {
             </div>
 
             {/* Plan yonetimi */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <p className="text-sm font-medium text-zinc-300">Planın</p>
-                <p className="mt-1 text-lg font-display font-semibold">
-                  {PLAN_LABELS[me.user.plan] ?? me.user.plan}
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {NEXT_PLAN[me.user.plan]
-                    ? "Daha fazla kredi ve klip özelleştirme için yükselt."
-                    : "En üst plandasın — sınırsız kredi."}
-                </p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-zinc-300">Planın</p>
+                  <p className="mt-1 text-lg font-display font-semibold">
+                    {PLAN_LABELS[me.user.plan] ?? me.user.plan}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {NEXT_PLAN[me.user.plan]
+                      ? "Daha fazla kredi ve klip özelleştirme için yükselt."
+                      : "En üst plandasın — sınırsız kredi."}
+                  </p>
+                </div>
+                {NEXT_PLAN[me.user.plan] && (
+                  <Link
+                    href={`/odeme?plan=${NEXT_PLAN[me.user.plan]}`}
+                    className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-black px-4 py-2 rounded-full text-sm font-semibold transition-colors"
+                  >
+                    {PLAN_LABELS[NEXT_PLAN[me.user.plan]]}&apos;ya geç
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
-              {NEXT_PLAN[me.user.plan] && (
-                <Link
-                  href="/#fiyatlandirma"
-                  className="flex items-center gap-1.5 bg-white/5 border border-white/10 hover:border-red-500/40 hover:text-red-400 text-zinc-200 px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                >
-                  Planları incele
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
+
+              {subscription && subscription.status === "active" && me.user.plan !== "ucretsiz" && (
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  {cancelError && <p className="text-red-400 text-xs mb-2">{cancelError}</p>}
+                  {!cancelConfirming ? (
+                    <button
+                      onClick={() => setCancelConfirming(true)}
+                      className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                    >
+                      Aboneliği iptal et
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs text-zinc-400">
+                        Emin misin? Abonelik hemen iptal edilir, plan hakların kaybolur.
+                      </span>
+                      <button
+                        onClick={handleCancelSubscription}
+                        disabled={canceling}
+                        className="bg-red-500 hover:bg-red-600 text-black px-4 py-1.5 rounded-full text-xs font-semibold transition disabled:opacity-40"
+                      >
+                        {canceling ? "İptal ediliyor..." : "Evet, iptal et"}
+                      </button>
+                      <button
+                        onClick={() => setCancelConfirming(false)}
+                        className="text-xs text-zinc-500 hover:text-white transition-colors"
+                      >
+                        Vazgeç
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

@@ -20,6 +20,7 @@ function GirisForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
+  const next = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ function GirisForm() {
         return;
       }
       localStorage.setItem("klipster_token", data.token);
-      router.push(inviteToken ? `/davet?token=${inviteToken}` : "/app");
+      router.push(inviteToken ? `/davet?token=${inviteToken}` : next || "/app");
     } catch {
       setError("Sunucuya ulaşılamadı, backend çalışıyor mu kontrol et");
     } finally {

@@ -55,6 +55,8 @@ Backend servisinde **Variables** sekmesine git ve `.env` dosyandaki değerlerin 
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
 - `FRONTEND_URL` → Vercel'e deploy ettikten sonra alacağın adres (örn: `https://klipster.vercel.app`) - bu adımı 3. adımdan sonra geri gelip dolduracaksın
 - `ALLOWED_ORIGINS` → gerekirse ekstra izinli adresler, virgülle ayrılmış (www'li/www'siz her iki adres de dahil olmalı)
+- `BACKEND_URL` → bu backend'in kendi genel adresi (Railway'in verdiği `https://....up.railway.app` veya `api.klipster.com.tr`) - iyzico ödeme sonrası kullanıcıyı buraya geri gönderir
+- `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL`, `IYZICO_YARATICI_PLAN_CODE`, `IYZICO_AJANS_PLAN_CODE` → ödeme altyapısı için, bkz. `.env.example` ve `backend/scripts/setup_iyzico_products.py`
 
 Değişkenleri kaydettikten sonra Railway otomatik olarak yeniden build alıp deploy edecek.
 
