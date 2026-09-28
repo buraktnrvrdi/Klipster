@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
+import PageLoader from "@/components/PageLoader";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -110,7 +111,7 @@ function OdemeForm() {
     }
   }
 
-  if (!token) return null;
+  if (!token) return <PageLoader />;
 
   return (
     <main className="noir-selection relative min-h-screen bg-black text-white px-6 py-16 overflow-hidden">
