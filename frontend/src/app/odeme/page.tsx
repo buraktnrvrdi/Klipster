@@ -12,7 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const inputCls =
   "w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors";
 
-type PlanInfo = { id: string; label: string; price_try: number };
+type PlanInfo = { id: string; label: string; price_try: number; price_usd: number };
 
 export default function OdemePage() {
   return (
@@ -140,7 +140,7 @@ function OdemeForm() {
               </h1>
               <p className="mt-2 text-sm text-zinc-400">
                 {selectedPlan
-                  ? `Aylık ${selectedPlan.price_try}₺ - otomatik yenilenir, istediğin zaman iptal edebilirsin.`
+                  ? `Aylık $${selectedPlan.price_usd} - otomatik yenilenir, istediğin zaman iptal edebilirsin.`
                   : plans && plans.length === 0
                   ? "Ödeme sistemi şu anda kullanılamıyor, lütfen daha sonra tekrar dene."
                   : "Plan bilgisi yükleniyor..."}

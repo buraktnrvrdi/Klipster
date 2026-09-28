@@ -34,8 +34,8 @@ const PLANS: Plan[] = [
     id: "yaratici",
     name: "Yaratıcı",
     icon: Zap,
-    price: 589,
-    priceLabel: "589₺",
+    price: 15,
+    priceLabel: "$15",
     tagline: "İçerik üreticiler için.",
     monthlyVideoLimit: 20,
     features: ["Ayda 300 kredi", "Klip sayısı/süresi özelleştirme", "Gelişmiş altyazı stilleri", "Dolgu kelime temizliği"],
@@ -46,8 +46,8 @@ const PLANS: Plan[] = [
     id: "ajans",
     name: "Ajans",
     icon: Building2,
-    price: 1490,
-    priceLabel: "1490₺",
+    price: 45,
+    priceLabel: "$45",
     tagline: "Ekipler için.",
     monthlyVideoLimit: null,
     features: ["Sınırsız kredi", "Çoklu kullanıcı (ekip)", "Öncelikli destek"],
@@ -134,7 +134,7 @@ export default function PricingCalculator() {
               <p className="text-xs uppercase tracking-widest text-zinc-500">Tahmini aylık maliyet</p>
               <p className="text-lg font-semibold text-red-500 mt-1">
                 {recommendedPlan.priceLabel}
-                {perVideoCost && <span className="text-zinc-500 font-normal text-sm"> · video başına ~{perVideoCost}₺</span>}
+                {perVideoCost && <span className="text-zinc-500 font-normal text-sm"> · video başına ~${perVideoCost}</span>}
               </p>
             </div>
           </div>

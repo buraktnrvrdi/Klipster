@@ -27,9 +27,11 @@ OPTIONS = {
     "base_url": os.environ.get("IYZICO_BASE_URL", "sandbox-api.iyzipay.com"),
 }
 
+# Fiyatlar backend/app/services/payments.py'deki PLAN_PRICES_TL ile ayni
+# olmali - orada $15/$45'in sabit TL karsiligi olarak aciklaniyor.
 PLANS = [
-    {"key": "yaratici", "product_name": "Klipster Yaratıcı", "plan_name": "Yaratıcı Aylık", "price": 589},
-    {"key": "ajans", "product_name": "Klipster Ajans", "plan_name": "Ajans Aylık", "price": 1490},
+    {"key": "yaratici", "product_name": "Klipster Yaratıcı", "plan_name": "Yaratıcı Aylık", "price": 749},
+    {"key": "ajans", "product_name": "Klipster Ajans", "plan_name": "Ajans Aylık", "price": 2249},
 ]
 
 
