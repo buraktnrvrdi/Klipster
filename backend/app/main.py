@@ -91,13 +91,13 @@ from app.services.video import (
 # E-postalardaki linklerin (dogrulama, sifre sifirlama, ekip daveti) hangi
 # alan adina gidecegini belirler - .env dosyasina FRONTEND_URL eklenmezse
 # yerel gelistirme adresi varsayilir.
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").strip().rstrip("/")
 
 # iyzico'nun odeme sonrasi kullaniciyi (POST ile) geri gonderecegi adres bu
 # backend'in kendi adresi olmali (oturum cerezi/token tasimadigi icin auth
 # gerektirmeyen /api/payments/callback ucnoktasi bu isi yapar) - .env'e
 # BACKEND_URL eklenmezse yerel gelistirme adresi varsayilir.
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").strip().rstrip("/")
 
 # Sifre sifirlama linki bu sure sonra gecersiz olur.
 PASSWORD_RESET_TTL_MINUTES = 60
@@ -1272,7 +1272,7 @@ def _get_youtube_access_token(user_id: int) -> str:
     is_expired = True
     if expires_at:
         try:
-            is_expired = datetime.fromisoformat(expires_at) <= datetime.now(timezone.utc)
+            is_expired = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc) <= datetime.now(timezone.utc)
         except ValueError:
             is_expired = True
     if not is_expired and row.get("access_token"):
