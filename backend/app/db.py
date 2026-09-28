@@ -172,6 +172,23 @@ def init_db():
             FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            plan TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            conversation_id TEXT,
+            checkout_token TEXT,
+            iyzico_pricing_plan_code TEXT,
+            iyzico_subscription_code TEXT,
+            iyzico_customer_code TEXT,
+            raw_response TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """,
     ]
 
     with get_conn() as conn:

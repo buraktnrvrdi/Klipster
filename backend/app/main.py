@@ -52,6 +52,7 @@ from app.services.credits import (
     compute_credit_cost,
 )
 from app.services.email import send_email
+from app.services import payments
 from app.services import storage
 from app.services.highlights import (
     find_highlights,
@@ -90,6 +91,12 @@ from app.services.video import (
 # alan adina gidecegini belirler - .env dosyasina FRONTEND_URL eklenmezse
 # yerel gelistirme adresi varsayilir.
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
+# iyzico'nun odeme sonrasi kullaniciyi (POST ile) geri gonderecegi adres bu
+# backend'in kendi adresi olmali (oturum cerezi/token tasimadigi icin auth
+# gerektirmeyen /api/payments/callback ucnoktasi bu isi yapar) - .env'e
+# BACKEND_URL eklenmezse yerel gelistirme adresi varsayilir.
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
 
 # Sifre sifirlama linki bu sure sonra gecersiz olur.
 PASSWORD_RESET_TTL_MINUTES = 60
@@ -393,6 +400,19 @@ class InvitePayload(BaseModel):
 
 class AcceptInvitePayload(BaseModel):
     token: str
+
+
+class CheckoutPayload(BaseModel):
+    """Odeme sayfasindan gonderilen fatura/musteri bilgileri - iyzico bir
+    abonelik icin bunlari zorunlu tutuyor (TC kimlik no dahil)."""
+    plan: str
+    name: str
+    surname: str
+    phone: str
+    identity_number: str
+    address: str
+    city: str
+    zip_code: str | None = None
 
 
 class ForgotPasswordPayload(BaseModel):
@@ -932,6 +952,172 @@ async def leave_org(current_user: dict = Depends(get_current_user)):
         )
     with get_conn() as conn:
         conn.execute("DELETE FROM org_members WHERE org_id = %s AND user_id = %s", (org["id"], current_user["id"]))
+        conn.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Odeme / Abonelik (iyzico)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/payments/plans")
+async def payment_plans():
+    """Odeme sayfasinin gosterecegi satin alinabilir planlar - iyzico
+    fiyatlandirma plani kodu .env'de tanimli degilse o plan listelenmez
+    (henuz kurulmamis demektir)."""
+    return {
+        "plans": [
+            {"id": plan_id, "label": payments.PLAN_LABELS[plan_id], "price_try": payments.PLAN_PRICES_TL[plan_id]}
+            for plan_id in ("yaratici", "ajans")
+            if payments.plan_is_purchasable(plan_id)
+        ]
+    }
+
+
+@app.get("/api/payments/status")
+async def payment_status(current_user: dict = Depends(get_current_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT plan, status, created_at, updated_at FROM subscriptions
+            WHERE user_id = %s ORDER BY created_at DESC LIMIT 1
+            """,
+            (current_user["id"],),
+        ).fetchone()
+    return {"plan": current_user["plan"], "subscription": row}
+
+
+@app.post("/api/payments/checkout")
+async def create_checkout(payload: CheckoutPayload, current_user: dict = Depends(get_current_user)):
+    _rate_limiter.check(f"checkout:{current_user['id']}", limit=10, window_seconds=3600)
+    if not payments.is_configured():
+        raise HTTPException(status_code=503, detail="Ödeme sistemi henüz yapılandırılmadı")
+    if not payments.plan_is_purchasable(payload.plan):
+        raise HTTPException(status_code=400, detail="Geçersiz plan")
+    if not payload.identity_number.strip() or not payload.phone.strip():
+        raise HTTPException(status_code=400, detail="TC kimlik numarası ve telefon zorunlu")
+
+    conversation_id = f"sub-{current_user['id']}-{uuid.uuid4().hex[:10]}"
+    callback_url = f"{BACKEND_URL}/api/payments/callback"
+    try:
+        data = await run_in_threadpool(
+            payments.create_checkout_form,
+            plan=payload.plan,
+            conversation_id=conversation_id,
+            callback_url=callback_url,
+            buyer={
+                "name": payload.name.strip(),
+                "surname": payload.surname.strip(),
+                "email": current_user["email"],
+                "phone": payload.phone.strip(),
+                "identity_number": payload.identity_number.strip(),
+                "address": payload.address.strip(),
+                "city": payload.city.strip(),
+                "zip_code": (payload.zip_code or "").strip(),
+            },
+        )
+    except payments.PaymentError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO subscriptions (user_id, plan, status, conversation_id, checkout_token, iyzico_pricing_plan_code)
+            VALUES (%s, %s, 'pending', %s, %s, %s)
+            """,
+            (current_user["id"], payload.plan, conversation_id, data.get("token"), payments.PRICING_PLAN_CODES[payload.plan]),
+        )
+        conn.commit()
+
+    return {"token": data.get("token"), "checkout_form_content": data.get("checkoutFormContent")}
+
+
+@app.post("/api/payments/callback")
+async def payment_callback(request: Request):
+    """iyzico'nun odeme sonrasi kullanicinin tarayicisini (form POST ile)
+    geri gonderdigi adres - oturum tokeni tasimaz, bu yuzden auth gerektirmez;
+    dogrulama daha once /api/payments/checkout sirasinda kaydedilen
+    checkout_token uzerinden yapilir."""
+    form = await request.form()
+    token = form.get("token")
+    if not token:
+        return RedirectResponse(f"{FRONTEND_URL}/odeme/sonuc?durum=basarisiz", status_code=302)
+
+    with get_conn() as conn:
+        sub_row = conn.execute(
+            "SELECT * FROM subscriptions WHERE checkout_token = %s", (token,)
+        ).fetchone()
+
+    if not sub_row:
+        logger.warning("[iyzico] bilinmeyen checkout token ile callback: %s", token)
+        return RedirectResponse(f"{FRONTEND_URL}/odeme/sonuc?durum=basarisiz", status_code=302)
+
+    try:
+        data = await run_in_threadpool(payments.retrieve_checkout_form, token)
+    except payments.PaymentError as exc:
+        logger.error("[iyzico] checkout form retrieve basarisiz: %s", exc)
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE subscriptions SET status = 'failed', updated_at = NOW() WHERE id = %s",
+                (sub_row["id"],),
+            )
+            conn.commit()
+        return RedirectResponse(f"{FRONTEND_URL}/odeme/sonuc?durum=basarisiz", status_code=302)
+
+    sub_status, sub_ref_code, customer_ref_code = payments.extract_subscription_status(data)
+    logger.info(
+        "[iyzico] callback token=%s durum=%s sub_ref=%s ham=%s",
+        token, sub_status, sub_ref_code, data.get("_raw", "")[:1000],
+    )
+    # NOT: data["status"]=="success" burada SADECE iyzico API cagrisinin
+    # kendisinin basarili oldugunu gosterir (ag/kimlik dogrulama basarili) -
+    # karttan cekimin/aboneligin gercekten basarili oldugunu GOSTERMEZ (bu
+    # yuzden burada kontrol edilmiyor). Gercek sonuc yalnizca sub_status'a
+    # bakilarak belirlenir; alan adi bilinmiyorsa (sandbox hesabi olmadan
+    # kesinlestirilemedi) guvenli taraf secilir: aktif SAYILMAZ, ham yanit
+    # yukarida loglanir - ilk gercek denemeden sonra tek satirla duzeltilir.
+    is_active = (sub_status or "").upper() in ("ACTIVE", "SUCCESS")
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE subscriptions
+            SET status = %s, iyzico_subscription_code = %s, iyzico_customer_code = %s,
+                raw_response = %s, updated_at = NOW()
+            WHERE id = %s
+            """,
+            ("active" if is_active else "failed", sub_ref_code, customer_ref_code, data.get("_raw"), sub_row["id"]),
+        )
+        if is_active:
+            conn.execute("UPDATE users SET plan = %s WHERE id = %s", (sub_row["plan"], sub_row["user_id"]))
+        conn.commit()
+
+    durum = "basarili" if is_active else "basarisiz"
+    return RedirectResponse(f"{FRONTEND_URL}/odeme/sonuc?durum={durum}", status_code=302)
+
+
+@app.post("/api/payments/cancel")
+async def cancel_subscription(current_user: dict = Depends(get_current_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM subscriptions WHERE user_id = %s AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (current_user["id"],),
+        ).fetchone()
+    if not row or not row.get("iyzico_subscription_code"):
+        raise HTTPException(status_code=404, detail="Aktif bir aboneliğin yok")
+
+    try:
+        await run_in_threadpool(payments.cancel_subscription, row["iyzico_subscription_code"])
+    except payments.PaymentError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    with get_conn() as conn:
+        conn.execute("UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE id = %s", (row["id"],))
+        conn.execute("UPDATE users SET plan = 'ucretsiz' WHERE id = %s", (current_user["id"],))
         conn.commit()
     return {"ok": True}
 
