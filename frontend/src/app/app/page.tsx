@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2, Wand2 } from "lucide-react";
+import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors, Copy, Sparkles, Monitor, CircleStop, Link2, Wand2, SquarePlay } from "lucide-react";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 
@@ -474,6 +474,12 @@ function ClipCard({
   const [translateLoading, setTranslateLoading] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
   const [translateLang, setTranslateLang] = useState(subtitleLanguages[0]?.id ?? "en");
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
+  const [youtubeTitle, setYoutubeTitle] = useState(clip.title || "");
+  const [youtubeDesc, setYoutubeDesc] = useState(clip.social_caption || "");
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeResultUrl, setYoutubeResultUrl] = useState<string | null>(null);
 
   async function handleRetrim() {
     if (!jobId) return;
@@ -579,6 +585,29 @@ function ClipCard({
       setTranslateError("Sunucuya ulaşılamadı");
     } finally {
       setTranslateLoading(false);
+    }
+  }
+
+  async function handlePublishYoutube() {
+    if (!jobId) return;
+    setYoutubeLoading(true);
+    setYoutubeError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips/${index}/publish/youtube`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ title: youtubeTitle, description: youtubeDesc }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setYoutubeError(data.detail || "Yüklenemedi");
+        return;
+      }
+      setYoutubeResultUrl(data.url);
+    } catch {
+      setYoutubeError("Sunucuya ulaşılamadı");
+    } finally {
+      setYoutubeLoading(false);
     }
   }
 
@@ -719,6 +748,61 @@ function ClipCard({
                 {translateError}
               </p>
             )}
+
+            <div className="pt-3 border-t border-white/10">
+              {!youtubeOpen ? (
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white font-medium transition-colors"
+                >
+                  <SquarePlay className="h-3.5 w-3.5" />
+                  YouTube&apos;a Shorts olarak yükle
+                </button>
+              ) : youtubeResultUrl ? (
+                <p className="text-[11px] text-green-400">
+                  Yüklendi ✓{" "}
+                  <a href={youtubeResultUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                    videoyu görüntüle
+                  </a>
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    value={youtubeTitle}
+                    onChange={(e) => setYoutubeTitle(e.target.value)}
+                    placeholder="Video başlığı"
+                    className="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors"
+                  />
+                  <textarea
+                    value={youtubeDesc}
+                    onChange={(e) => setYoutubeDesc(e.target.value)}
+                    placeholder="Açıklama (opsiyonel)"
+                    rows={2}
+                    className="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/60 transition-colors resize-none"
+                  />
+                  {youtubeError && (
+                    <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+                      {youtubeError}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handlePublishYoutube}
+                      disabled={youtubeLoading || !youtubeTitle.trim()}
+                      className="text-[11px] text-red-400 hover:text-red-300 font-semibold transition-colors disabled:opacity-40"
+                    >
+                      {youtubeLoading ? "Yükleniyor..." : "Yükle"}
+                    </button>
+                    <button
+                      onClick={() => setYoutubeOpen(false)}
+                      className="text-[11px] text-zinc-500 hover:text-white font-medium transition-colors"
+                    >
+                      Vazgeç
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
