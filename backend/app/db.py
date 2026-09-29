@@ -139,6 +139,8 @@ def init_db():
             overlay_url TEXT,
             overlay_position TEXT,
             overlay_scale TEXT,
+            overlay_x REAL,
+            overlay_y REAL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
@@ -253,6 +255,8 @@ def init_db():
         "ALTER TABLE jobs ADD COLUMN overlay_url TEXT",
         "ALTER TABLE jobs ADD COLUMN overlay_position TEXT",
         "ALTER TABLE jobs ADD COLUMN overlay_scale TEXT",
+        "ALTER TABLE jobs ADD COLUMN overlay_x REAL",
+        "ALTER TABLE jobs ADD COLUMN overlay_y REAL",
         "ALTER TABLE email_verifications ADD COLUMN code TEXT",
     ]
     for stmt in alter_stmts:

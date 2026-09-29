@@ -17,6 +17,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import PageLoader from "@/components/PageLoader";
+import OverlayPositionPicker from "@/components/OverlayPositionPicker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const resolveUrl = (url: string | null | undefined) =>
@@ -39,7 +40,8 @@ type Clip = {
   subtitle_animation?: string;
   highlight_color?: string;
   overlay_url?: string | null;
-  overlay_position?: string;
+  overlay_x?: number;
+  overlay_y?: number;
   overlay_scale?: string;
 };
 
@@ -54,7 +56,8 @@ type JobDetail = {
   subtitle_animation?: string;
   highlight_color?: string;
   overlay_url?: string | null;
-  overlay_position?: string;
+  overlay_x?: number;
+  overlay_y?: number;
   overlay_scale?: string;
 };
 
@@ -63,8 +66,9 @@ type RenderOptions = {
   positions: { id: string; label: string }[];
   colors: { id: string; label: string; hex: string }[];
   animations: { id: string; label: string }[];
-  overlayPositions: { id: string; label: string }[];
   overlayScales: { id: string; label: string }[];
+  overlayDefaultX?: number;
+  overlayDefaultY?: number;
   credits: { base: number; per_clip: number };
 };
 
@@ -104,17 +108,13 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "daktilo", label: "Daktilo (harf harf)" },
     { id: "kayan", label: "Kayarak giren" },
   ],
-  overlayPositions: [
-    { id: "sol-ust", label: "Sol Üst" },
-    { id: "sag-ust", label: "Sağ Üst" },
-    { id: "sol-alt", label: "Sol Alt" },
-    { id: "sag-alt", label: "Sağ Alt" },
-  ],
   overlayScales: [
     { id: "kucuk", label: "Küçük" },
     { id: "orta", label: "Orta" },
     { id: "buyuk", label: "Büyük" },
   ],
+  overlayDefaultX: 0.74,
+  overlayDefaultY: 0.03,
   credits: { base: 4, per_clip: 2 },
 };
 
@@ -476,7 +476,8 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
   const [clipAnimation, setClipAnimation] = useState("statik");
   const [clipHighlightColor, setClipHighlightColor] = useState(KARAOKE_HIGHLIGHT);
   const [clipOverlayUrl, setClipOverlayUrl] = useState<string | null>(null);
-  const [clipOverlayPosition, setClipOverlayPosition] = useState("sag-ust");
+  const [clipOverlayX, setClipOverlayX] = useState(0.74);
+  const [clipOverlayY, setClipOverlayY] = useState(0.03);
   const [clipOverlayScale, setClipOverlayScale] = useState("orta");
   const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
   const [newLogoPreview, setNewLogoPreview] = useState<string | null>(null);
@@ -563,7 +564,8 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
         setClipAnimation(c.subtitle_animation ?? jobData.subtitle_animation ?? "statik");
         setClipHighlightColor(c.highlight_color ?? jobData.highlight_color ?? KARAOKE_HIGHLIGHT);
         setClipOverlayUrl(c.overlay_url ?? jobData.overlay_url ?? null);
-        setClipOverlayPosition(c.overlay_position ?? jobData.overlay_position ?? "sag-ust");
+        setClipOverlayX(c.overlay_x ?? jobData.overlay_x ?? 0.74);
+        setClipOverlayY(c.overlay_y ?? jobData.overlay_y ?? 0.03);
         setClipOverlayScale(c.overlay_scale ?? jobData.overlay_scale ?? "orta");
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Yüklenemedi");
@@ -644,7 +646,8 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
         aspect: clipAspect,
         subtitle_animation: clipAnimation,
         highlight_color: clipHighlightColor,
-        overlay_position: clipOverlayPosition,
+        overlay_x: clipOverlayX,
+        overlay_y: clipOverlayY,
         overlay_scale: clipOverlayScale,
       };
       if (overlayUrl !== undefined) body.overlay_url = overlayUrl;
@@ -1066,22 +1069,11 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
               </div>
 
               {(newLogoPreview || (clipOverlayUrl && !overlayRemoved)) && (
-                <div className="mt-2.5 grid grid-cols-2 gap-2">
-                  <select
-                    value={clipOverlayPosition}
-                    onChange={(e) => setClipOverlayPosition(e.target.value)}
-                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
-                  >
-                    {renderOptions.overlayPositions.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-black">
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+                <>
                   <select
                     value={clipOverlayScale}
                     onChange={(e) => setClipOverlayScale(e.target.value)}
-                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                    className="mt-2.5 w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60 transition-colors"
                   >
                     {renderOptions.overlayScales.map((s) => (
                       <option key={s.id} value={s.id} className="bg-black">
@@ -1089,7 +1081,20 @@ export default function ClipEditor({ jobId, clipIndex }: { jobId: string; clipIn
                       </option>
                     ))}
                   </select>
-                </div>
+                  <div className="mt-2.5">
+                    <OverlayPositionPicker
+                      previewUrl={(newLogoPreview || resolveUrl(clipOverlayUrl)) as string}
+                      aspect={clipAspect}
+                      scale={clipOverlayScale}
+                      x={clipOverlayX}
+                      y={clipOverlayY}
+                      onChange={(nx, ny) => {
+                        setClipOverlayX(nx);
+                        setClipOverlayY(ny);
+                      }}
+                    />
+                  </div>
+                </>
               )}
             </div>
 

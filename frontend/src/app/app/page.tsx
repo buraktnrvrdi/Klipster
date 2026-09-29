@@ -7,6 +7,7 @@ import { Pencil, Download, X, Lock, LogOut, UploadCloud, Trash2, Plus, Scissors,
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 import PageLoader from "@/components/PageLoader";
+import OverlayPositionPicker from "@/components/OverlayPositionPicker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const resolveUrl = (url: string | null | undefined) =>
@@ -29,7 +30,8 @@ type Clip = {
   subtitle_animation?: string;
   highlight_color?: string;
   overlay_url?: string | null;
-  overlay_position?: string;
+  overlay_x?: number;
+  overlay_y?: number;
   overlay_scale?: string;
   social_caption?: string;
   social_hashtags?: string[];
@@ -59,8 +61,9 @@ type RenderOptions = {
   positions: { id: string; label: string }[];
   colors: { id: string; label: string; hex: string }[];
   animations: { id: string; label: string }[];
-  overlayPositions: { id: string; label: string }[];
   overlayScales: { id: string; label: string }[];
+  overlayDefaultX?: number;
+  overlayDefaultY?: number;
   credits: { base: number; per_clip: number };
 };
 type Me = {
@@ -133,17 +136,13 @@ const FALLBACK_RENDER_OPTIONS: RenderOptions = {
     { id: "daktilo", label: "Daktilo (harf harf)" },
     { id: "kayan", label: "Kayarak giren" },
   ],
-  overlayPositions: [
-    { id: "sol-ust", label: "Sol Üst" },
-    { id: "sag-ust", label: "Sağ Üst (varsayılan)" },
-    { id: "sol-alt", label: "Sol Alt" },
-    { id: "sag-alt", label: "Sağ Alt" },
-  ],
   overlayScales: [
     { id: "kucuk", label: "Küçük" },
     { id: "orta", label: "Orta (varsayılan)" },
     { id: "buyuk", label: "Büyük" },
   ],
+  overlayDefaultX: 0.74,
+  overlayDefaultY: 0.03,
   credits: { base: 4, per_clip: 2 },
 };
 
@@ -1047,7 +1046,8 @@ export default function AppPage() {
   const [subtitleHighlightColor, setSubtitleHighlightColor] = useState("#FFEB3B");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [overlayPosition, setOverlayPosition] = useState("sag-ust");
+  const [overlayX, setOverlayX] = useState(FALLBACK_RENDER_OPTIONS.overlayDefaultX ?? 0.74);
+  const [overlayY, setOverlayY] = useState(FALLBACK_RENDER_OPTIONS.overlayDefaultY ?? 0.03);
   const [overlayScale, setOverlayScale] = useState("orta");
   const [currentAspect, setCurrentAspect] = useState("9:16");
   const [currentStyle, setCurrentStyle] = useState("klasik");
@@ -1312,7 +1312,8 @@ export default function AppPage() {
       };
       if (overlayUrl) {
         body.overlay_url = overlayUrl;
-        body.overlay_position = overlayPosition;
+        body.overlay_x = overlayX;
+        body.overlay_y = overlayY;
         body.overlay_scale = overlayScale;
       }
       if (canCustomize) {
@@ -1337,7 +1338,8 @@ export default function AppPage() {
       formData.append("highlight_color", subtitleHighlightColor);
       if (overlayUrl) {
         formData.append("overlay_url", overlayUrl);
-        formData.append("overlay_position", overlayPosition);
+        formData.append("overlay_x", String(overlayX));
+        formData.append("overlay_y", String(overlayY));
         formData.append("overlay_scale", overlayScale);
       }
       if (canCustomize) {
@@ -1695,34 +1697,36 @@ export default function AppPage() {
               )}
 
               {logoFile && (
-                <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                  <select
-                    value={overlayPosition}
-                    onChange={(e) => setOverlayPosition(e.target.value)}
-                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
-                  >
-                    {renderOptions.overlayPositions.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-black">
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={overlayScale}
-                    onChange={(e) => setOverlayScale(e.target.value)}
-                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
-                  >
-                    {renderOptions.overlayScales.map((s) => (
-                      <option key={s.id} value={s.id} className="bg-black">
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={overlayScale}
+                  onChange={(e) => setOverlayScale(e.target.value)}
+                  className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/60 transition-colors"
+                >
+                  {renderOptions.overlayScales.map((s) => (
+                    <option key={s.id} value={s.id} className="bg-black">
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
+            {logoFile && logoPreview && (
+              <div className="mt-3">
+                <OverlayPositionPicker
+                  previewUrl={logoPreview}
+                  aspect={aspect}
+                  scale={overlayScale}
+                  x={overlayX}
+                  y={overlayY}
+                  onChange={(nx, ny) => {
+                    setOverlayX(nx);
+                    setOverlayY(ny);
+                  }}
+                />
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500 mt-1.5">
-              Klibin köşesine sabit bir logo/banner görseli bindirir (PNG/JPEG/WEBP, en fazla 5MB)
+              Bir logo/banner görseli bindirir (PNG/JPEG/WEBP, en fazla 5MB) - konumunu belirlemek için önizleme kutusunda sürükle bırak yapabilirsin
             </p>
           </div>
 
