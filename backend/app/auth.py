@@ -20,7 +20,7 @@ def _lookup_user_by_token(token: str | None) -> dict:
         row = conn.execute(
             """
             SELECT users.id, users.email, users.plan, users.display_name, users.avatar,
-                   users.email_verified, users.created_at, sessions.expires_at
+                   users.email_verified, users.created_at, users.demo_expires_at, sessions.expires_at
             FROM sessions
             JOIN users ON users.id = sessions.user_id
             WHERE sessions.token = %s
@@ -30,6 +30,27 @@ def _lookup_user_by_token(token: str | None) -> dict:
     if not row:
         raise HTTPException(status_code=401, detail="Oturum gecersiz, tekrar giris yap")
     row = dict(row)
+
+    # demo_expires_at: admin tarafindan gecici olarak yukseltilmis bir plan
+    # (bkz. /api/admin/demo-account) suresi dolunca ucretsiz plana geri duser -
+    # ayri bir zamanlanmis gorev (cron) yerine, bir sonraki istekte tembel
+    # (lazy) olarak kontrol edilip DB'ye yazilir.
+    demo_expires_at = row.pop("demo_expires_at", None)
+    if demo_expires_at:
+        try:
+            demo_expiry = datetime.fromisoformat(demo_expires_at) if isinstance(demo_expires_at, str) else demo_expires_at
+            if demo_expiry.tzinfo is None:
+                demo_expiry = demo_expiry.replace(tzinfo=timezone.utc)
+        except ValueError:
+            demo_expiry = None
+        if demo_expiry and datetime.now(timezone.utc) > demo_expiry:
+            with get_conn() as conn:
+                conn.execute(
+                    "UPDATE users SET plan = 'ucretsiz', demo_expires_at = NULL WHERE id = %s",
+                    (row["id"],),
+                )
+                conn.commit()
+            row["plan"] = "ucretsiz"
 
     expires_at = row.pop("expires_at", None)
     if expires_at:
