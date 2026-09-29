@@ -68,12 +68,12 @@ from app.services.video import (
     DEFAULT_ASPECT,
     DEFAULT_STYLE,
     DEFAULT_HIGHLIGHT_COLOR,
-    DEFAULT_OVERLAY_POSITION,
+    DEFAULT_OVERLAY_X,
+    DEFAULT_OVERLAY_Y,
     DEFAULT_OVERLAY_SCALE,
     DEFAULT_SUBTITLE_ANIMATION,
     DEFAULT_SUBTITLE_COLOR,
     DEFAULT_SUBTITLE_POSITION,
-    OVERLAY_POSITIONS,
     OVERLAY_SCALES,
     STYLE_PRESETS,
     SUBTITLE_ANIMATIONS,
@@ -318,12 +318,18 @@ def _validate_render_options(
     return color, position, asp, anim, hcolor
 
 
-def _validate_overlay_options(overlay_position: str | None, overlay_scale: str | None) -> tuple[str, str]:
-    """Logo/banner bindirme konumu ve boyutu icin kullanici girdisini dogrular,
-    gecersiz/eksik deger gelirse sessizce varsayilana duser."""
-    position = overlay_position if overlay_position in OVERLAY_POSITIONS else DEFAULT_OVERLAY_POSITION
+def _validate_overlay_options(
+    overlay_x: float | None, overlay_y: float | None, overlay_scale: str | None
+) -> tuple[float, float, str]:
+    """Logo/banner bindirme konumu (0.0-1.0 orani) ve boyutu icin kullanici
+    girdisini dogrular, gecersiz/eksik deger gelirse sessizce varsayilana
+    duser; konum degerleri 0.0-1.0 araligina sikistirilir."""
+    x = overlay_x if isinstance(overlay_x, (int, float)) else DEFAULT_OVERLAY_X
+    y = overlay_y if isinstance(overlay_y, (int, float)) else DEFAULT_OVERLAY_Y
+    x = min(max(float(x), 0.0), 1.0)
+    y = min(max(float(y), 0.0), 1.0)
     scale = overlay_scale if overlay_scale in OVERLAY_SCALES else DEFAULT_OVERLAY_SCALE
-    return position, scale
+    return x, y, scale
 
 
 def _resolve_clip_option(payload_value, is_valid, existing: dict, existing_key: str, row: dict, row_key: str, default):
@@ -361,7 +367,8 @@ class RetrimPayload(BaseModel):
     highlight_color: str | None = None
     # overlay_url: None = degistirme, "" = kaldir, baska bir deger = yeni logo/banner
     overlay_url: str | None = None
-    overlay_position: str | None = None
+    overlay_x: float | None = None
+    overlay_y: float | None = None
     overlay_scale: str | None = None
 
 
@@ -379,7 +386,8 @@ class AddClipPayload(BaseModel):
     subtitle_animation: str | None = None
     highlight_color: str | None = None
     overlay_url: str | None = None
-    overlay_position: str | None = None
+    overlay_x: float | None = None
+    overlay_y: float | None = None
     overlay_scale: str | None = None
 
 
@@ -404,7 +412,8 @@ class UploadUrlPayload(BaseModel):
     subtitle_animation: str | None = None
     highlight_color: str | None = None
     overlay_url: str | None = None
-    overlay_position: str | None = None
+    overlay_x: float | None = None
+    overlay_y: float | None = None
     overlay_scale: str | None = None
 
 
@@ -1460,14 +1469,15 @@ def run_pipeline(
     subtitle_animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = DEFAULT_HIGHLIGHT_COLOR,
     overlay_url: str | None = None,
-    overlay_position: str = DEFAULT_OVERLAY_POSITION,
+    overlay_x: float = DEFAULT_OVERLAY_X,
+    overlay_y: float = DEFAULT_OVERLAY_Y,
     overlay_scale: str = DEFAULT_OVERLAY_SCALE,
 ):
     with _pipeline_semaphore:
         _run_pipeline_locked(
             job_id, video_path, style, remove_fillers, max_clips, min_duration, max_duration,
             subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
-            overlay_url, overlay_position, overlay_scale,
+            overlay_url, overlay_x, overlay_y, overlay_scale,
         )
 
 
@@ -1485,7 +1495,8 @@ def _run_pipeline_locked(
     subtitle_animation: str,
     highlight_color: str,
     overlay_url: str | None = None,
-    overlay_position: str = DEFAULT_OVERLAY_POSITION,
+    overlay_x: float = DEFAULT_OVERLAY_X,
+    overlay_y: float = DEFAULT_OVERLAY_Y,
     overlay_scale: str = DEFAULT_OVERLAY_SCALE,
 ):
     overlay_path, overlay_is_temp = _ensure_overlay_local(overlay_url)
@@ -1523,7 +1534,7 @@ def _run_pipeline_locked(
                 style=style, remove_fillers=remove_fillers,
                 subtitle_color=subtitle_color, position=subtitle_position, aspect=aspect,
                 animation=subtitle_animation, highlight_color=highlight_color,
-                overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
+                overlay_path=overlay_path, overlay_x=overlay_x, overlay_y=overlay_y, overlay_scale=overlay_scale,
             )
             cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
             clip_url = _upload_output(job_id, path)
@@ -1551,7 +1562,8 @@ def _run_pipeline_locked(
                 "highlight_color": highlight_color,
                 "remove_fillers": remove_fillers,
                 "overlay_url": overlay_url,
-                "overlay_position": overlay_position,
+                "overlay_x": overlay_x,
+                "overlay_y": overlay_y,
                 "overlay_scale": overlay_scale,
             })
 
@@ -1602,7 +1614,8 @@ def _job_to_dict(row: dict) -> dict:
         "subtitle_animation": row.get("subtitle_animation") or DEFAULT_SUBTITLE_ANIMATION,
         "highlight_color": row.get("highlight_color") or DEFAULT_HIGHLIGHT_COLOR,
         "overlay_url": storage.resolve_url(row.get("overlay_url")),
-        "overlay_position": row.get("overlay_position") or DEFAULT_OVERLAY_POSITION,
+        "overlay_x": row.get("overlay_x") if row.get("overlay_x") is not None else DEFAULT_OVERLAY_X,
+        "overlay_y": row.get("overlay_y") if row.get("overlay_y") is not None else DEFAULT_OVERLAY_Y,
         "overlay_scale": row.get("overlay_scale") or DEFAULT_OVERLAY_SCALE,
         "credit_cost": row.get("credit_cost") or 0,
         "uploaded_by": row.get("uploaded_by_email"),
@@ -1625,7 +1638,8 @@ def _start_processing_job(
     subtitle_animation: str | None,
     highlight_color: str | None,
     overlay_url: str | None,
-    overlay_position: str | None,
+    overlay_x: float | None,
+    overlay_y: float | None,
     overlay_scale: str | None,
     current_user: dict,
     background_tasks: BackgroundTasks,
@@ -1668,7 +1682,7 @@ def _start_processing_job(
     color, position, asp, anim, hcolor = _validate_render_options(
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
     )
-    ovl_position, ovl_scale = _validate_overlay_options(overlay_position, overlay_scale)
+    ovl_x, ovl_y, ovl_scale = _validate_overlay_options(overlay_x, overlay_y, overlay_scale)
 
     # Kredi maliyeti: video suresi (ffprobe ile okunur) ve secilen klip
     # sayisina gore hesaplanir - bkz. app/services/credits.py.
@@ -1691,12 +1705,12 @@ def _start_processing_job(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, overlay_url, overlay_position, overlay_scale, credit_cost, org_id)
-            VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO jobs (id, user_id, filename, status, style, remove_fillers, subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color, overlay_url, overlay_x, overlay_y, overlay_scale, credit_cost, org_id)
+            VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 job_id, current_user["id"], filename, style, int(remove_fillers),
-                color, position, asp, anim, hcolor, overlay_url or None, ovl_position, ovl_scale,
+                color, position, asp, anim, hcolor, overlay_url or None, ovl_x, ovl_y, ovl_scale,
                 cost, org["id"] if org else None,
             ),
         )
@@ -1704,7 +1718,7 @@ def _start_processing_job(
 
     background_tasks.add_task(
         run_pipeline, job_id, str(video_path), style, remove_fillers, max_clips, dur_min, dur_max,
-        color, position, asp, anim, hcolor, overlay_url or None, ovl_position, ovl_scale,
+        color, position, asp, anim, hcolor, overlay_url or None, ovl_x, ovl_y, ovl_scale,
     )
     return {"job_id": job_id, "credit_cost": cost}
 
@@ -1759,7 +1773,8 @@ async def upload_video(
     subtitle_animation: str | None = Form(None),
     highlight_color: str | None = Form(None),
     overlay_url: str | None = Form(None),
-    overlay_position: str | None = Form(None),
+    overlay_x: float | None = Form(None),
+    overlay_y: float | None = Form(None),
     overlay_scale: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
@@ -1785,7 +1800,7 @@ async def upload_video(
         _start_processing_job,
         job_id, video_path, safe_filename, style, remove_fillers, clip_count, min_duration, max_duration,
         subtitle_color, subtitle_position, aspect, subtitle_animation, highlight_color,
-        overlay_url, overlay_position, overlay_scale,
+        overlay_url, overlay_x, overlay_y, overlay_scale,
         current_user, background_tasks,
     )
 
@@ -1826,7 +1841,7 @@ async def upload_video_from_url(
         job_id, video_path, display_filename, style, remove_fillers, payload.clip_count,
         payload.min_duration, payload.max_duration, payload.subtitle_color,
         payload.subtitle_position, payload.aspect, payload.subtitle_animation,
-        payload.highlight_color, payload.overlay_url, payload.overlay_position,
+        payload.highlight_color, payload.overlay_url, payload.overlay_x, payload.overlay_y,
         payload.overlay_scale, current_user, background_tasks,
     )
 
@@ -1969,8 +1984,20 @@ async def retrim_clip(
         overlay_url = payload.overlay_url
     else:
         overlay_url = existing_clip.get("overlay_url") or row.get("overlay_url")
-    overlay_position, overlay_scale = _validate_overlay_options(
-        payload.overlay_position or existing_clip.get("overlay_position") or row.get("overlay_position"),
+    # overlay_x/overlay_y icin 0.0 (kirpma karesinin sol/ust kenari) da gecerli
+    # bir deger oldugundan (falsy), "or" degil acik None kontrolu kullaniyoruz.
+    overlay_x = (
+        payload.overlay_x if payload.overlay_x is not None
+        else existing_clip.get("overlay_x") if existing_clip.get("overlay_x") is not None
+        else row.get("overlay_x")
+    )
+    overlay_y = (
+        payload.overlay_y if payload.overlay_y is not None
+        else existing_clip.get("overlay_y") if existing_clip.get("overlay_y") is not None
+        else row.get("overlay_y")
+    )
+    overlay_x, overlay_y, overlay_scale = _validate_overlay_options(
+        overlay_x, overlay_y,
         payload.overlay_scale or existing_clip.get("overlay_scale") or row.get("overlay_scale"),
     )
     name = f"clip_{clip_index + 1}"
@@ -1983,7 +2010,7 @@ async def retrim_clip(
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
-            overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
+            overlay_path=overlay_path, overlay_x=overlay_x, overlay_y=overlay_y, overlay_scale=overlay_scale,
         )
         cover_path = make_cover(path, clips[clip_index].get("title", name), job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -2019,7 +2046,8 @@ async def retrim_clip(
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
         "overlay_url": overlay_url,
-        "overlay_position": overlay_position,
+        "overlay_x": overlay_x,
+        "overlay_y": overlay_y,
         "overlay_scale": overlay_scale,
     }
 
@@ -2121,8 +2149,10 @@ async def add_clip(
         overlay_url = None
     else:
         overlay_url = payload.overlay_url or row.get("overlay_url")
-    overlay_position, overlay_scale = _validate_overlay_options(
-        payload.overlay_position or row.get("overlay_position"),
+    overlay_x = payload.overlay_x if payload.overlay_x is not None else row.get("overlay_x")
+    overlay_y = payload.overlay_y if payload.overlay_y is not None else row.get("overlay_y")
+    overlay_x, overlay_y, overlay_scale = _validate_overlay_options(
+        overlay_x, overlay_y,
         payload.overlay_scale or row.get("overlay_scale"),
     )
     index = len(clips)
@@ -2137,7 +2167,7 @@ async def add_clip(
             style=style, remove_fillers=remove_fillers,
             subtitle_color=color, position=position, aspect=asp, animation=anim,
             highlight_color=hcolor,
-            overlay_path=overlay_path, overlay_position=overlay_position, overlay_scale=overlay_scale,
+            overlay_path=overlay_path, overlay_x=overlay_x, overlay_y=overlay_y, overlay_scale=overlay_scale,
         )
         cover_path = make_cover(path, title, job_out_dir / f"{name}_cover.jpg")
     except Exception as e:
@@ -2176,7 +2206,8 @@ async def add_clip(
         "highlight_color": hcolor,
         "remove_fillers": remove_fillers,
         "overlay_url": overlay_url,
-        "overlay_position": overlay_position,
+        "overlay_x": overlay_x,
+        "overlay_y": overlay_y,
         "overlay_scale": overlay_scale,
     }
     clips.append(new_clip)
@@ -2415,8 +2446,9 @@ async def render_options():
         "positions": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_POSITIONS.items()],
         "colors": SUBTITLE_COLOR_PRESETS,
         "animations": [{"id": key, "label": preset["label"]} for key, preset in SUBTITLE_ANIMATIONS.items()],
-        "overlayPositions": [{"id": key, "label": preset["label"]} for key, preset in OVERLAY_POSITIONS.items()],
         "overlayScales": [{"id": key, "label": preset["label"]} for key, preset in OVERLAY_SCALES.items()],
+        "overlayDefaultX": DEFAULT_OVERLAY_X,
+        "overlayDefaultY": DEFAULT_OVERLAY_Y,
         "credits": {"base": CREDIT_COST_BASE, "per_clip": CREDIT_COST_PER_CLIP},
     }
 

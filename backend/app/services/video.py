@@ -110,17 +110,12 @@ ASPECT_PRESETS = {
 }
 DEFAULT_ASPECT = "9:16"
 
-# Logo/banner bindirme (overlay) - kosede sabit bir konum + boyut secimi.
-# Serbest surukle-birak yerine bilerek sabit koselere sinirlandirildi (cogu
-# YouTube/TikTok filigrani da zaten boyle) - hem UI hem ffmpeg tarafinda
-# cok daha basit ve hizli uygulanabiliyor.
-OVERLAY_POSITIONS = {
-    "sol-ust": {"label": "Sol Üst"},
-    "sag-ust": {"label": "Sağ Üst (varsayılan)"},
-    "sol-alt": {"label": "Sol Alt"},
-    "sag-alt": {"label": "Sağ Alt"},
-}
-DEFAULT_OVERLAY_POSITION = "sag-ust"
+# Logo/banner bindirme (overlay) - kullanici onizlemede overlay'i serbestce
+# surukleyip konumunu belirliyor; bu konum, cikti karesinin genisligine/
+# yuksekligine orani (0.0-1.0) olarak saklaniyor - boylece 9:16/4:5/1:1 gibi
+# farkli en-boy oranlarinda da aynı goreli konum dogru sekilde uygulanabiliyor.
+DEFAULT_OVERLAY_X = 0.74  # eski "sag-ust" varsayilanina denk gelen konum
+DEFAULT_OVERLAY_Y = 0.03
 
 # width_ratio: overlay goruntusunun, cikti videosunun genisligine oraniyla
 # hedef genisligi (yukseklik, en-boy orani korunarak otomatik hesaplanir).
@@ -130,11 +125,6 @@ OVERLAY_SCALES = {
     "buyuk": {"label": "Büyük", "width_ratio": 0.30},
 }
 DEFAULT_OVERLAY_SCALE = "orta"
-
-# Overlay'in video kenarlarindan piksel cinsinden bosluk payi - cikti
-# genisligi (1080) tum aspect preset'lerde sabit oldugu icin tek bir sabit
-# deger yeterli.
-OVERLAY_PADDING_PX = 40
 
 # Altyazi animasyonu - "statik" tum kelimeler ayni anda gorunur (klasik alt yazi),
 # "karaoke" ise o an konusulan kelimeyi ayri bir vurgu rengiyle/hafif buyuterek
@@ -618,13 +608,15 @@ def make_vertical_clip(
     animation: str = DEFAULT_SUBTITLE_ANIMATION,
     highlight_color: str = KARAOKE_HIGHLIGHT_HEX,
     overlay_path: Path | None = None,
-    overlay_position: str = DEFAULT_OVERLAY_POSITION,
+    overlay_x: float = DEFAULT_OVERLAY_X,
+    overlay_y: float = DEFAULT_OVERLAY_Y,
     overlay_scale: str = DEFAULT_OVERLAY_SCALE,
 ) -> Path:
     """Videodan bir klip keser (dolgu kelime/uzun sessizlik varsa temizler),
     secilen en-boy oranina (sabit merkez-kirpma ile, crop=ih*ratio:ih) kirpar
     ve altyazi ekler. overlay_path verilirse (ör. kullanicinin logosu/banner'i),
-    secilen kosede sabit boyutta bindirilir."""
+    overlay_x/overlay_y (cikti karesinin genisligine/yuksekligine orani,
+    0.0-1.0) ile belirtilen serbest konumda bindirilir."""
     out_dir.mkdir(parents=True, exist_ok=True)
     ass_path = out_dir / f"{name}.ass"
     final_path = out_dir / f"{name}.mp4"
@@ -648,13 +640,10 @@ def make_vertical_clip(
     if overlay_path:
         width_ratio = OVERLAY_SCALES.get(overlay_scale, OVERLAY_SCALES[DEFAULT_OVERLAY_SCALE])["width_ratio"]
         overlay_w = max(1, int(aspect_preset["res_x"] * width_ratio))
-        pad = OVERLAY_PADDING_PX
-        x_expr, y_expr = {
-            "sol-ust": (str(pad), str(pad)),
-            "sag-ust": (f"W-w-{pad}", str(pad)),
-            "sol-alt": (str(pad), f"H-h-{pad}"),
-            "sag-alt": (f"W-w-{pad}", f"H-h-{pad}"),
-        }.get(overlay_position, (f"W-w-{pad}", str(pad)))
+        x_px = int(overlay_x * aspect_preset["res_x"])
+        y_px = int(overlay_y * aspect_preset["res_y"])
+        x_expr = f"min(max(0,{x_px}),W-w)"
+        y_expr = f"min(max(0,{y_px}),H-h)"
         filter_complex = (
             f"[0:v]{crop_step},{scale_step},subtitles=filename={ass_path.name}[base];"
             f"[1:v]scale={overlay_w}:-1[logo];"
