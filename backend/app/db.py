@@ -86,6 +86,7 @@ def init_db():
             display_name TEXT,
             avatar TEXT,
             email_verified INTEGER NOT NULL DEFAULT 0,
+            demo_expires_at TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
         )
         """,
@@ -241,6 +242,7 @@ def init_db():
         "ALTER TABLE users ADD COLUMN display_name TEXT",
         "ALTER TABLE users ADD COLUMN avatar TEXT",
         "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN demo_expires_at TIMESTAMP",
         "ALTER TABLE sessions ADD COLUMN expires_at TEXT",
         "ALTER TABLE jobs ADD COLUMN words_json TEXT",
         "ALTER TABLE jobs ADD COLUMN language TEXT",

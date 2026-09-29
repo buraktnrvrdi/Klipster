@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 # SMTP bilgilerini hicbir zaman goremez (bu tam olarak yasanan hataydi).
 load_dotenv()
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, Header, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -98,6 +98,12 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").strip().r
 # gerektirmeyen /api/payments/callback ucnoktasi bu isi yapar) - .env'e
 # BACKEND_URL eklenmezse yerel gelistirme adresi varsayilir.
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").strip().rstrip("/")
+
+# /api/admin/* uc noktalarini korumak icin paylasilan gizli anahtar - ayri
+# bir admin kullanici/rol sistemi kurmak yerine (bu tek bir kisinin - bizim -
+# elle kullanacagi bir arac), tek bir ortam degiskeniyle korunuyor. Railway'de
+# ADMIN_API_KEY tanimli degilse bu uc noktalar tamamen kapali kalir.
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "").strip()
 
 # Sifre sifirlama linki bu sure sonra gecersiz olur.
 PASSWORD_RESET_TTL_MINUTES = 60
@@ -2450,6 +2456,80 @@ async def render_options():
         "overlayDefaultX": DEFAULT_OVERLAY_X,
         "overlayDefaultY": DEFAULT_OVERLAY_Y,
         "credits": {"base": CREDIT_COST_BASE, "per_clip": CREDIT_COST_PER_CLIP},
+    }
+
+
+def _require_admin(x_admin_key: str | None = Header(default=None)) -> None:
+    """/api/admin/* uc noktalarini korur - normal kullanici oturumuyla degil,
+    sadece Railway'e ADMIN_API_KEY olarak tanimlanan gizli anahtari X-Admin-Key
+    basligiyla gonderenler erisebilir. Anahtar tanimli degilse uc nokta
+    tamamen kapali sayilir (yanlislikla acik kalmasin diye)."""
+    if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=404, detail="Bulunamadı")
+
+
+DEMO_MAX_DAYS = 60
+
+
+class DemoAccountPayload(BaseModel):
+    email: str
+    plan: str = "yaratici"
+    days: int = 7
+
+
+@app.post("/api/admin/demo-account", dependencies=[Depends(_require_admin)])
+async def create_demo_account(payload: DemoAccountPayload):
+    """Bir influencer/potansiyel musteriye elle, sureli bir demo hesabi acar -
+    /api/admin/demo-account uc noktasini biz (admin) X-Admin-Key basligiyla
+    cagiriyoruz, donen giris bilgilerini kendimiz manuel olarak mail atiyoruz
+    (otomatik toplu e-posta gonderimi yok). E-posta zaten kayitliysa, mevcut
+    kullanicinin plani gecici olarak yukseltilir (sifresine dokunulmaz);
+    kayitli degilse rastgele bir sifreyle yeni hesap acilir. Sure dolunca
+    plan otomatik olarak ucretsiz'e duser (bkz. app/auth.py _lookup_user_by_token)."""
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Geçerli bir e-posta adresi gerekli")
+    if payload.plan not in CREDIT_LIMITS:
+        raise HTTPException(status_code=400, detail=f"Geçersiz plan: {payload.plan}")
+    if not (1 <= payload.days <= DEMO_MAX_DAYS):
+        raise HTTPException(status_code=400, detail=f"Süre 1-{DEMO_MAX_DAYS} gün arasında olmalı")
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=payload.days)
+
+    with get_conn() as conn:
+        existing = conn.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE users SET plan = %s, demo_expires_at = %s WHERE id = %s",
+                (payload.plan, expires_at.isoformat(), existing["id"]),
+            )
+            conn.commit()
+            return {
+                "email": email,
+                "existing_user": True,
+                "plan": payload.plan,
+                "expires_at": expires_at.isoformat(),
+                "message": "Bu e-posta zaten kayıtlı - planı geçici olarak yükseltildi, kendi şifresiyle giriş yapabilir.",
+            }
+
+        password = secrets.token_urlsafe(9)
+        conn.execute(
+            """
+            INSERT INTO users (email, password_hash, plan, email_verified, demo_expires_at)
+            VALUES (%s, %s, %s, 1, %s)
+            """,
+            (email, hash_password(password), payload.plan, expires_at.isoformat()),
+        )
+        conn.commit()
+
+    return {
+        "email": email,
+        "existing_user": False,
+        "password": password,
+        "plan": payload.plan,
+        "expires_at": expires_at.isoformat(),
+        "login_url": f"{FRONTEND_URL}/giris",
+        "message": "Yeni demo hesabı oluşturuldu - giriş bilgilerini kendin mail at.",
     }
 
 
