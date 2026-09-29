@@ -31,8 +31,9 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   keywords: [
-    "klip üretici", "video klip", "viral klip", "TikTok klip", "Instagram Reels",
-    "YouTube Shorts", "yapay zeka video düzenleme", "altyazı ekleme", "dikey video",
+    "klip üretici", "klip oluşturucu", "video klip", "viral klip", "TikTok klip", "Instagram Reels",
+    "YouTube Shorts", "shorts oluşturucu", "yapay zeka video düzenleme", "altyazı ekleme",
+    "otomatik altyazı ekleme", "dikey video", "viral video nasıl yapılır",
   ],
   alternates: { canonical: "/" },
   openGraph: {
