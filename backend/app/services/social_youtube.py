@@ -21,6 +21,7 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
+VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 # youtube.upload: video yukleme: youtube.readonly: kanal adini gosterebilmek icin.
 SCOPES = "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
@@ -146,3 +147,28 @@ def upload_short(access_token: str, video_path, title: str, description: str) ->
     if not video_id:
         raise SocialAuthError("YouTube video kimliği alınamadı")
     return video_id
+
+
+def get_video_stats(access_token: str, video_ids: list[str]) -> dict[str, dict]:
+    """video_id -> {view_count, like_count} eslemesi dondurur. Silinmis veya
+    erisilemeyen videolar sonuc sozlugunde hic gorunmez; like_count, yaratici
+    beğeni sayısını gizlemişse None olur (YouTube bunu destekliyor)."""
+    if not video_ids:
+        return {}
+    resp = requests.get(
+        VIDEOS_URL,
+        params={"part": "statistics", "id": ",".join(video_ids[:50])},
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        logger.warning("[youtube] video istatistikleri alinamadi: %s", resp.text[:300])
+        return {}
+    result = {}
+    for item in resp.json().get("items", []):
+        stats = item.get("statistics", {})
+        result[item["id"]] = {
+            "view_count": int(stats.get("viewCount", 0)),
+            "like_count": int(stats["likeCount"]) if "likeCount" in stats else None,
+        }
+    return result

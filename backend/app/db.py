@@ -213,6 +213,20 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS published_videos (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            job_id TEXT,
+            clip_index INTEGER,
+            platform TEXT NOT NULL,
+            video_id TEXT NOT NULL,
+            video_url TEXT,
+            title TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """,
     ]
 
     with get_conn() as conn:

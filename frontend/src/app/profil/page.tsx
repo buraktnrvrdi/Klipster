@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, KeyRound, LogOut, Mail, SquarePlay, Trash2, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, Copy, Eye, KeyRound, LogOut, Mail, SquarePlay, ThumbsUp, Trash2, UserPlus, Users } from "lucide-react";
 import { AVATAR_META, AvatarBadge } from "@/components/AvatarIcons";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
@@ -36,6 +36,18 @@ type OrgMember = {
 type OrgInvite = { token: string; email: string; created_at: string };
 
 type Subscription = { plan: string; status: string; created_at: string; updated_at: string } | null;
+
+type PublishedVideo = {
+  id: number;
+  platform: string;
+  video_id: string;
+  video_url: string;
+  title: string | null;
+  thumbnail_url: string | null;
+  created_at: string;
+  view_count: number | null;
+  like_count: number | null;
+};
 
 type OrgDetail = {
   id: string;
@@ -117,6 +129,8 @@ function ProfilContent() {
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [youtubeNotice, setYoutubeNotice] = useState<string | null>(null);
 
+  const [publishedVideos, setPublishedVideos] = useState<PublishedVideo[] | null>(null);
+
   useEffect(() => {
     const t = localStorage.getItem("klipster_token");
     if (!t) {
@@ -154,6 +168,7 @@ function ProfilContent() {
       .catch(() => {});
 
     refreshYoutubeStatus(token);
+    refreshPublishedVideos(token);
     refreshOrg(token);
   }, [token, router]);
 
@@ -174,6 +189,20 @@ function ProfilContent() {
         setYoutubeAccountName(data?.youtube?.account_name ?? null);
       })
       .catch(() => {});
+  }
+
+  function refreshPublishedVideos(t: string) {
+    fetch(`${API_URL}/api/social/published`, { headers: authHeaders(t) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setPublishedVideos(data?.videos ?? []))
+      .catch(() => setPublishedVideos([]));
+  }
+
+  function formatCount(n: number | null): string {
+    if (n === null || n === undefined) return "—";
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}B`;
+    return String(n);
   }
 
   async function handleYoutubeConnect() {
@@ -695,6 +724,53 @@ function ProfilContent() {
                 )}
               </div>
             </div>
+
+            {/* Paylasilan videolar */}
+            {publishedVideos && publishedVideos.length > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <SquarePlay className="h-4 w-4 text-zinc-500" />
+                  <p className="text-sm font-medium text-zinc-300">Paylaşılan Videolar</p>
+                </div>
+                <p className="text-xs text-zinc-500 mb-4">
+                  Yüklediğin klipler ve güncel izlenme/beğeni sayıları.
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {publishedVideos.map((v) => (
+                    <a
+                      key={v.id}
+                      href={v.video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group rounded-xl overflow-hidden border border-white/10 bg-black/30 hover:border-red-500/40 transition-colors"
+                    >
+                      <div className="aspect-[9/16] bg-black overflow-hidden">
+                        {v.thumbnail_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={v.thumbnail_url}
+                            alt={v.title ?? "Video"}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        )}
+                      </div>
+                      <div className="p-2.5">
+                        <p className="text-xs font-medium text-white truncate">{v.title || "Adsız video"}</p>
+                        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-zinc-500">
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" /> {formatCount(v.view_count)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <ThumbsUp className="h-3 w-3" /> {formatCount(v.like_count)}
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Hesap guvenligi */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6">
