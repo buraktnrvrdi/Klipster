@@ -113,7 +113,7 @@ def test_verify_email_with_correct_code_marks_account_verified(client, monkeypat
 
     captured = {}
 
-    def _capture_email(to, subject, body):
+    def _capture_email(to, subject, body, html=None):
         captured["to"] = to
         captured["body"] = body
         return True

@@ -51,7 +51,7 @@ from app.services.credits import (
     compute_added_clip_cost,
     compute_credit_cost,
 )
-from app.services.email import send_email
+from app.services.email import password_reset_html, send_email, verification_code_html
 from app.services import payments
 from app.services import social_youtube
 from app.services import storage
@@ -501,6 +501,7 @@ def _send_verification_email(user_id: int, email: str) -> None:
         f"Merhaba,\n\nKlipster hesabını doğrulamak için bu kodu kullan:\n\n{code}\n\n"
         f"Bu kod {EMAIL_VERIFICATION_TTL_HOURS} saat geçerlidir. Bu kodu sen istemediysen "
         f"bu e-postayı yok sayabilirsin.",
+        html=verification_code_html(code, EMAIL_VERIFICATION_TTL_HOURS),
     )
 
 
@@ -753,6 +754,7 @@ async def forgot_password(payload: ForgotPasswordPayload, request: Request):
                 f"Merhaba,\n\nŞifreni sıfırlamak için aşağıdaki linke tıkla (bu link "
                 f"{PASSWORD_RESET_TTL_MINUTES} dakika geçerlidir):\n{link}\n\n"
                 f"Bu talebi sen yapmadıysan bu e-postayı yok sayabilirsin, şifren değişmez.",
+                html=password_reset_html(link, PASSWORD_RESET_TTL_MINUTES),
             )
 
     return {
