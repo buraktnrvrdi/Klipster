@@ -1339,7 +1339,60 @@ async def publish_clip_youtube(
         if is_temp:
             video_path.unlink(missing_ok=True)
 
-    return {"ok": True, "video_id": video_id, "url": f"https://youtube.com/shorts/{video_id}"}
+    video_url = f"https://youtube.com/shorts/{video_id}"
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO published_videos (user_id, job_id, clip_index, platform, video_id, video_url, title)
+            VALUES (%s, %s, %s, 'youtube', %s, %s, %s)
+            """,
+            (current_user["id"], job_id, clip_index, video_id, video_url, payload.title),
+        )
+        conn.commit()
+
+    return {"ok": True, "video_id": video_id, "url": video_url}
+
+
+@app.get("/api/social/published")
+async def social_published(current_user: dict = Depends(get_current_user)):
+    """Kullanicinin daha once yukledigi videolarin listesi - YouTube icin
+    guncel izlenme/begeni sayilari canli olarak sorgulanir."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM published_videos WHERE user_id = %s ORDER BY created_at DESC LIMIT 100",
+            (current_user["id"],),
+        ).fetchall()
+    if not rows:
+        return {"videos": []}
+
+    stats: dict = {}
+    youtube_ids = [r["video_id"] for r in rows if r["platform"] == "youtube"]
+    if youtube_ids:
+        try:
+            access_token = _get_youtube_access_token(current_user["id"])
+            stats = await run_in_threadpool(social_youtube.get_video_stats, access_token, youtube_ids)
+        except Exception:
+            stats = {}
+
+    videos = []
+    for r in rows:
+        video_stats = stats.get(r["video_id"], {})
+        videos.append(
+            {
+                "id": r["id"],
+                "platform": r["platform"],
+                "video_id": r["video_id"],
+                "video_url": r["video_url"],
+                "title": r["title"],
+                "thumbnail_url": f"https://i.ytimg.com/vi/{r['video_id']}/hqdefault.jpg"
+                if r["platform"] == "youtube"
+                else None,
+                "created_at": r["created_at"],
+                "view_count": video_stats.get("view_count"),
+                "like_count": video_stats.get("like_count"),
+            }
+        )
+    return {"videos": videos}
 
 
 # ---------------------------------------------------------------------------
