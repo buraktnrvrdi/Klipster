@@ -6,8 +6,6 @@ import PricingCalculator from "@/components/PricingCalculator";
 import ParallaxStars from "@/components/ParallaxStars";
 import Logo from "@/components/Logo";
 import {
-  Sparkles,
-  MessageSquareText,
   Check,
   X,
   ArrowRight,
@@ -15,28 +13,54 @@ import {
   Mic,
   Users,
   Building2,
-  Wand2,
-  Image as ImageIcon,
+  Flame,
+  Captions,
+  Scissors,
+  Frame,
 } from "lucide-react";
 
-const BENTO_SECONDARY = [
+function YouTubeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M21.6 7.2a2.5 2.5 0 0 0-1.76-1.77C18.27 5 12 5 12 5s-6.27 0-7.84.43A2.5 2.5 0 0 0 2.4 7.2C2 8.78 2 12 2 12s0 3.22.4 4.8a2.5 2.5 0 0 0 1.76 1.77C5.73 19 12 19 12 19s6.27 0 7.84-.43a2.5 2.5 0 0 0 1.76-1.77C22 15.22 22 12 22 12s0-3.22-.4-4.8ZM10 15V9l5.2 3L10 15Z" />
+    </svg>
+  );
+}
+
+const MOMENTS = [
+  { label: "00:42 · Beklenmedik itiraf", score: 96 },
+  { label: "12:08 · Tartışmalı fikir", score: 91 },
+  { label: "27:55 · Komik anekdot", score: 84 },
+];
+
+const BENTO_CARDS = [
   {
-    icon: MessageSquareText,
-    color: "text-blue-400",
-    title: "Kelimesi kelimesine altyazı",
-    desc: "Konuşmayla aynı anda beliren, taşmayan, okunaklı altyazılar — elle senkronize etmene gerek kalmaz.",
+    icon: Captions,
+    accent: "bg-sky-400",
+    ring: "bg-sky-400/10 text-sky-300 ring-sky-400/30",
+    title: "Altyazı tam konuşmanın üstüne biner",
+    desc: "Kelime kelime, ağızdan çıktığı anda ekranda. Premiere'de sürükleyip senkronlamakla uğraşmazsın.",
   },
   {
-    icon: Wand2,
-    color: "text-yellow-400",
-    title: "Dolgu kelime temizliği",
-    desc: '"Şey", "ıı", "eee" ve uzun sessizlikler otomatik kırpılır; klip akıcı ve dinlenebilir çıkar.',
+    icon: Scissors,
+    accent: "bg-amber-400",
+    ring: "bg-amber-400/10 text-amber-300 ring-amber-400/30",
+    title: '"Şey", "ıı", "eee" uçar gider',
+    desc: "Dolgu kelimeleri ve ölü sessizlikleri otomatik kırpıyoruz. Klip baştan sona akıcı çıkıyor.",
   },
   {
-    icon: ImageIcon,
-    color: "text-purple-400",
-    title: "Otomatik kapak görseli",
-    desc: "Videonun içinden en güçlü kareyi seçip başlığı üstüne bindirir. Kapak tasarımıyla uğraşmazsın.",
+    icon: Frame,
+    accent: "bg-violet-400",
+    ring: "bg-violet-400/10 text-violet-300 ring-violet-400/30",
+    title: "Kapak görseli hazır çıkar",
+    desc: "Videodan en iyi kareyi kendimiz seçip başlığı üstüne koyuyoruz. Canva'yı açmana gerek yok.",
+  },
+  {
+    icon: YouTubeIcon,
+    accent: "bg-red-500",
+    ring: "bg-red-500/10 text-red-400 ring-red-500/30",
+    title: "Tek tıkla YouTube Shorts'a yükle",
+    desc: "Kanalını bir kez bağla, klibi editörden doğrudan Shorts olarak yayınla. İndirip tekrar yüklemekle uğraşma.",
   },
 ];
 
@@ -234,63 +258,50 @@ export default function LandingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 h-auto lg:h-[640px]">
-              {/* Buyuk oncu kart */}
-              <div className="lg:col-span-2 lg:row-span-2 group relative overflow-hidden p-8 border border-white/10 bg-gradient-to-b from-zinc-900/60 to-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl">
+              {/* Ana kart */}
+              <div className="md:col-span-2 lg:row-span-2 relative overflow-hidden p-8 rounded-2xl border border-white/10 bg-gradient-to-br from-red-950/30 via-zinc-950 to-black">
                 <div className="relative z-10 h-full flex flex-col">
-                  <div className="mb-6 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 text-red-500 w-fit">
-                    <Sparkles className="w-6 h-6" />
+                  <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-400 ring-1 ring-red-500/30">
+                    <Flame className="w-6 h-6" />
                   </div>
                   <h3 className="text-3xl font-semibold text-white font-display mb-4 tracking-tight">
-                    Yapay zeka en çarpıcı anı yakalar
+                    Hangi anın patlayacağını biz buluruz
                   </h3>
                   <p className="text-zinc-400 text-lg leading-relaxed">
-                    Transkripti satır satır okumana gerek yok. Klipster konuşmayı analiz eder,
-                    en ilgi çekici anları saniyeler içinde tespit eder ve öncelik sırasına göre listeler.
+                    2 saatlik videoyu baştan sona izlemene gerek yok. Klipster konuşmayı dinler,
+                    en çok konuşulacak anları saniyeler içinde çıkarır ve sana sırayla sunar.
                   </p>
-                  <div className="mt-auto flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                    <span className="text-xs font-mono text-red-500">TÜMÜNÜ KEŞFET</span>
-                    <ArrowRight className="w-4 h-4 text-red-500" />
+                  <div className="mt-auto pt-8 space-y-3">
+                    {MOMENTS.map((m) => (
+                      <div key={m.label} className="rounded-lg border border-white/10 bg-black/40 px-4 py-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-zinc-300">{m.label}</span>
+                          <span className="font-mono text-red-400">{m.score}</span>
+                        </div>
+                        <div className="mt-2 h-1 rounded-full bg-white/10">
+                          <div className="h-1 rounded-full bg-red-500" style={{ width: `${m.score}%` }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none"
-                  style={{ background: "radial-gradient(circle at top right, #ef4444, transparent 70%)" }}
-                />
               </div>
 
-              {/* İlk ikincil kart daha genis */}
-              <div className="lg:col-span-2 group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl">
-                <div className="relative z-10 flex flex-col h-full">
-                  {(() => {
-                    const PrimaryIcon = BENTO_SECONDARY[0].icon;
-                    return (
-                      <div className={`mb-4 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 w-fit ${BENTO_SECONDARY[0].color}`}>
-                        <PrimaryIcon className="w-6 h-6" />
-                      </div>
-                    );
-                  })()}
-                  <h3 className="text-2xl font-semibold text-white font-display mb-2">{BENTO_SECONDARY[0].title}</h3>
-                  <p className="text-zinc-400">{BENTO_SECONDARY[0].desc}</p>
-                </div>
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none"
-                  style={{ background: "radial-gradient(circle at top right, #60a5fa, transparent 70%)" }}
-                />
-              </div>
-
-              {/* Kalan iki kucuk kart */}
-              {BENTO_SECONDARY.slice(1).map((f) => (
+              {/* Ozellik kartlari */}
+              {BENTO_CARDS.map((f, i) => (
                 <div
                   key={f.title}
-                  className="group relative overflow-hidden p-8 border border-white/10 bg-black hover:border-red-500/30 hover:-translate-y-1 transition-all duration-300 rounded-xl"
+                  className="group relative overflow-hidden p-6 rounded-2xl border border-white/10 bg-zinc-950 hover:border-white/25 hover:-translate-y-1 transition-all duration-300"
                 >
-                  <div className="relative z-10">
-                    <div className={`mb-4 inline-flex p-3 rounded-lg bg-white/5 border border-white/10 w-fit ${f.color}`}>
-                      <f.icon className="w-6 h-6" />
+                  <div className={`absolute left-0 top-0 h-full w-0.5 ${f.accent} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                  <div className="flex items-start justify-between mb-5">
+                    <div className={`inline-flex h-11 w-11 items-center justify-center rounded-full ring-1 ${f.ring}`}>
+                      <f.icon className="w-5 h-5" />
                     </div>
-                    <h3 className="text-xl font-semibold text-white font-display mb-2">{f.title}</h3>
-                    <p className="text-sm text-zinc-400">{f.desc}</p>
+                    <span className="font-mono text-xs text-zinc-600">0{i + 1}</span>
                   </div>
+                  <h3 className="text-lg font-semibold text-white font-display mb-2 leading-snug">{f.title}</h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
                 </div>
               ))}
             </div>
