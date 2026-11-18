@@ -522,6 +522,7 @@ export default function LandingPage() {
               <li><a href="#nasil-calisir" className="hover:text-white transition-colors">Nasıl Çalışır</a></li>
               <li><a href="#fiyatlandirma" className="hover:text-white transition-colors">Fiyatlandırma</a></li>
               <li><a href="#karsilastirma" className="hover:text-white transition-colors">Karşılaştırma</a></li>
+              <li><Link href="/blog" className="hover:text-white transition-colors">Rehberler</Link></li>
             </ul>
           </div>
 

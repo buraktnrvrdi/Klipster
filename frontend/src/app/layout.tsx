@@ -35,7 +35,6 @@ export const metadata: Metadata = {
     "YouTube Shorts", "shorts oluşturucu", "yapay zeka video düzenleme", "altyazı ekleme",
     "otomatik altyazı ekleme", "dikey video", "viral video nasıl yapılır",
   ],
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "tr_TR",
